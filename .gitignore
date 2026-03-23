@@ -1,0 +1,11 @@
+# dependencies
+.venv/
+
+# reference materials (local only)
+reference/
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store

@@ -1,0 +1,30 @@
+ais:
+  claude:
+    cmd: "claude"
+    prompt_flag: "-p"
+    flags: ["--dangerously-skip-permissions"]
+    color: "blue"
+    icon: "🔵"
+  gemini:
+    cmd: "gemini"
+    prompt_flag: "-p"
+    flags: ["--yolo"]
+    color: "green"
+    icon: "🟢"
+  codex:
+    cmd: "codex"
+    subcommand: "exec"
+    flags: []
+    color: "yellow"
+    icon: "🟡"
+
+deep:
+  moderator_rotation: ["gemini", "codex", "claude"]
+  speaking_order: ["claude", "codex", "gemini"]
+  full_rounds_kept: 3
+  compress_summary_max: 80
+  timeout_seconds: 30
+
+history:
+  save_dir: "~/.ai-roundtable/history"
+  format: ["json", "md"]
