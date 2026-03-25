@@ -300,13 +300,15 @@ class RoundtableApp(App):
 
         if self._mode == "quick":
             mod_wrap.display = False
-            label.update("[dim]快问 ›[/dim]")
+            label.update("[dim]Rapid Fire ›[/dim]")
             inp.placeholder = "输入问题…  /compare 互评  ^t 升级深度讨论"
+            self.bind("ctrl+t", "toggle_mode", description="切换至 Deep Dive")
         else:
             mod_wrap.display = True
             rnd = self.orchestrator.round_num
-            label.update(f"[dim]深度 轮{rnd + 1} ›[/dim]")
+            label.update(f"[dim]Deep Dive 轮{rnd + 1} ›[/dim]")
             inp.placeholder = "可 · 止 · 深入此节 · @claude …"
+            self.bind("ctrl+t", "toggle_mode", description="切换至 Rapid Fire")
 
         inp.disabled = False
 
