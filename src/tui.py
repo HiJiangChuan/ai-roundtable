@@ -24,7 +24,20 @@ from quick import QuickMode
 
 
 class RoundtableInput(Input):
-    """Input that shows a placeholder token for multi-line pastes."""
+    """Input that shows a placeholder token for multi-line/image pastes."""
+
+    def action_paste(self) -> None:
+        """Ctrl+V: image on clipboard → image token; otherwise default paste."""
+        try:
+            from PIL import ImageGrab
+            img = ImageGrab.grabclipboard()
+        except Exception:
+            img = None
+
+        if img is not None:
+            self.app._handle_image_paste(img, self)
+        else:
+            super().action_paste()
 
     def _on_paste(self, event: events.Paste) -> None:
         text = event.text
@@ -212,6 +225,8 @@ class RoundtableApp(App):
         self._cb_queue: asyncio.Queue = None
         self._paste_buffers: dict = {}
         self._paste_count = 0
+        self._image_buffers: dict = {}
+        self._image_count = 0
 
     # ── layout ────────────────────────────────────────────────────
 
@@ -427,11 +442,35 @@ class RoundtableApp(App):
 
     # ── input ─────────────────────────────────────────────────────
 
+    def _handle_image_paste(self, img, inp: "RoundtableInput") -> None:
+        from datetime import datetime
+        images_dir = Path.home() / ".ai-roundtable" / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+
+        self._image_count += 1
+        filename = f"img_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{self._image_count}.png"
+        path = images_dir / filename
+        img.save(path, "PNG")
+
+        size_bytes = path.stat().st_size
+        size_str = f"{size_bytes // 1024} KB" if size_bytes < 1024 * 1024 else f"{size_bytes // (1024*1024)} MB"
+        token = f"[Image #{self._image_count}] {filename} ({img.width}×{img.height}, {size_str})"
+        self._image_buffers[self._image_count] = path
+        inp.insert_text_at_cursor(token)
+
     def _expand_paste_tokens(self, text: str) -> str:
         import re
-        def _replace(m):
+
+        def _replace_text(m):
             return self._paste_buffers.get(int(m.group(1)), m.group(0))
-        return re.sub(r'\[Pasted text #(\d+) \+\d+ lines\]', _replace, text)
+        text = re.sub(r'\[Pasted text #(\d+) \+\d+ lines\]', _replace_text, text)
+
+        def _replace_image(m):
+            path = self._image_buffers.get(int(m.group(1)))
+            return f"\n[附件图片: {path}]\n" if path else m.group(0)
+        text = re.sub(r'\[Image #(\d+)\][^\n]*', _replace_image, text)
+
+        return text
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         value = self._expand_paste_tokens(event.value.strip())
@@ -439,6 +478,7 @@ class RoundtableApp(App):
             return
         self.query_one("#main-input", RoundtableInput).value = ""
         self._paste_buffers.clear()
+        self._image_buffers.clear()
 
         if self._mode == "quick":
             if value == "/compare":
@@ -507,6 +547,8 @@ class RoundtableApp(App):
         self._mode = "quick"
         self.orchestrator = Orchestrator(self.project_root, self.config)
         self.quick_mode.reset()
+        self._paste_buffers.clear()
+        self._image_buffers.clear()
 
         self._apply_mode_ui()
         self.query_one("#main-input", RoundtableInput).value = ""
