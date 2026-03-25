@@ -31,13 +31,14 @@ class RoundtableInput(Input):
         try:
             from PIL import ImageGrab
             img = ImageGrab.grabclipboard()
-        except Exception:
-            img = None
-
-        if img is not None:
-            self.app._handle_image_paste(img, self)
-        else:
-            super().action_paste()
+            if img is not None:
+                self.app._handle_image_paste(img, self)
+                return
+        except ImportError:
+            self.app.notify("图片粘贴需要 Pillow：pip install Pillow", severity="warning", timeout=5)
+        except Exception as e:
+            self.app.notify(f"图片读取失败: {e}", severity="error", timeout=5)
+        super().action_paste()
 
     def _on_paste(self, event: events.Paste) -> None:
         text = event.text
