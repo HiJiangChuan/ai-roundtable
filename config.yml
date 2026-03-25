@@ -28,3 +28,5 @@ deep:
 history:
   save_dir: "~/.ai-roundtable/history"
   format: ["json", "md"]
+
+version: "0.0.2"

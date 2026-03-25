@@ -14,12 +14,31 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Header, Input, RichLog, Static
 from textual.markup import escape
+from rich.markdown import Markdown
 
 sys.path.insert(0, str(Path(__file__).parent))
 from orchestrator import Orchestrator
 from prompt_loader import PromptLoader
 from cli_caller import CliCaller
 from quick import QuickMode
+
+
+class RoundtableInput(Input):
+    """Input that shows a placeholder token for multi-line pastes."""
+
+    def _on_paste(self, event: events.Paste) -> None:
+        text = event.text
+        lines = text.splitlines()
+        if len(lines) <= 1:
+            self.insert_text_at_cursor(text)
+        else:
+            app = self.app
+            app._paste_count += 1
+            app._paste_buffers[app._paste_count] = text
+            token = f"[Pasted text #{app._paste_count} +{len(lines) - 1} lines]"
+            self.insert_text_at_cursor(token)
+        event.text = ""  # 父类 _on_paste 也会执行，置空后它不会插入任何内容
+        event.stop()
 
 
 AGENTS = ["claude", "gemini", "codex"]
@@ -149,6 +168,14 @@ Footer {
     border: none;
     background: transparent;
 }
+
+#version-label {
+    width: auto;
+    height: 1;
+    content-align: right middle;
+    color: #1c2128;
+    padding: 0 0 0 1;
+}
 """
 
 
@@ -182,6 +209,8 @@ class RoundtableApp(App):
         self.orchestrator = Orchestrator(project_root, config)
         self.quick_mode = QuickMode(config, self._cli_caller, self._prompt_loader)
         self._cb_queue: asyncio.Queue = None
+        self._paste_buffers: dict = {}
+        self._paste_count = 0
 
     # ── layout ────────────────────────────────────────────────────
 
@@ -211,7 +240,11 @@ class RoundtableApp(App):
 
         with Horizontal(id="input-row"):
             yield Static("", id="mode-label")
-            yield Input(id="main-input")
+            yield RoundtableInput(id="main-input")
+            yield Static(
+                f"v{self.config.get('version', '0.1.0')}",
+                id="version-label",
+            )
 
         yield Footer()
 
@@ -224,7 +257,7 @@ class RoundtableApp(App):
         self.query_one("#moderator-log", RichLog).can_focus = True
 
         self._apply_mode_ui()
-        self.query_one("#main-input", Input).focus()
+        self.query_one("#main-input", RoundtableInput).focus()
 
     # ── helpers ───────────────────────────────────────────────────
 
@@ -240,16 +273,16 @@ class RoundtableApp(App):
         title.update(f"{base} {suffix}".strip())
 
     def _apply_mode_ui(self) -> None:
-        mod = self._mod_log()
+        mod_wrap = self.query_one("#moderator-wrap")
         label = self.query_one("#mode-label", Static)
-        inp = self.query_one("#main-input", Input)
+        inp = self.query_one("#main-input", RoundtableInput)
 
         if self._mode == "quick":
-            mod.display = False
+            mod_wrap.display = False
             label.update("[dim]快问 ›[/dim]")
             inp.placeholder = "输入问题…  /compare 互评  ^t 升级深度讨论"
         else:
-            mod.display = True
+            mod_wrap.display = True
             rnd = self.orchestrator.round_num
             label.update(f"[dim]深度 轮{rnd + 1} ›[/dim]")
             inp.placeholder = "可 · 止 · 深入此节 · @claude …"
@@ -257,7 +290,7 @@ class RoundtableApp(App):
         inp.disabled = False
 
     def _set_busy(self, busy: bool) -> None:
-        inp = self.query_one("#main-input", Input)
+        inp = self.query_one("#main-input", RoundtableInput)
         label = self.query_one("#mode-label", Static)
         if busy:
             inp.disabled = True
@@ -316,7 +349,7 @@ class RoundtableApp(App):
                 divider = f"[dim]── 轮 {rnd} ──[/dim]"
 
             log.write(divider)
-            log.write(escape(content))
+            log.write(Markdown(content))
             log.write("")
 
         elif event_type == "moderator_output":
@@ -352,7 +385,7 @@ class RoundtableApp(App):
             question = kwargs.get("question", "")
             log = self._log(agent)
             log.write(f"[dim]── @直问: {escape(question[:60])} ──[/dim]")
-            log.write(escape(content))
+            log.write(Markdown(content))
             log.write("")
 
         elif event_type == "status":
@@ -369,7 +402,7 @@ class RoundtableApp(App):
                         f"[dim]深度 轮{rnd + 1} ›[/dim]"
                     )
             elif state == "ended":
-                inp = self.query_one("#main-input", Input)
+                inp = self.query_one("#main-input", RoundtableInput)
                 inp.disabled = True
                 inp.placeholder = "会话已结束  Ctrl+N 新建"
                 self.query_one("#mode-label", Static).update("[dim]结束[/dim]")
@@ -382,9 +415,9 @@ class RoundtableApp(App):
             for agent in AGENTS:
                 log = self._log(agent)
                 log.write("[bold yellow]── 总结 ──[/bold yellow]")
-                log.write(escape(summary))
+                log.write(Markdown(summary))
             self.query_one("#moderator-title", Static).update("🎙 会话结束")
-            inp = self.query_one("#main-input", Input)
+            inp = self.query_one("#main-input", RoundtableInput)
             inp.disabled = True
             inp.placeholder = "Ctrl+N 新建"
 
@@ -393,19 +426,18 @@ class RoundtableApp(App):
 
     # ── input ─────────────────────────────────────────────────────
 
-    def on_paste(self, event: events.Paste) -> None:
-        """Collapse multi-line paste into single line."""
-        inp = self.query_one("#main-input", Input)
-        if inp.has_focus:
-            clean = event.text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
-            inp.insert_text_at_cursor(clean)
-            event.stop()
+    def _expand_paste_tokens(self, text: str) -> str:
+        import re
+        def _replace(m):
+            return self._paste_buffers.get(int(m.group(1)), m.group(0))
+        return re.sub(r'\[Pasted text #(\d+) \+\d+ lines\]', _replace, text)
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
-        value = event.value.strip()
+        value = self._expand_paste_tokens(event.value.strip())
         if not value:
             return
-        self.query_one("#main-input", Input).value = ""
+        self.query_one("#main-input", RoundtableInput).value = ""
+        self._paste_buffers.clear()
 
         if self._mode == "quick":
             if value == "/compare":
@@ -467,8 +499,8 @@ class RoundtableApp(App):
         self.quick_mode.reset()
 
         self._apply_mode_ui()
-        self.query_one("#main-input", Input).value = ""
-        self.query_one("#main-input", Input).focus()
+        self.query_one("#main-input", RoundtableInput).value = ""
+        self.query_one("#main-input", RoundtableInput).focus()
 
     def action_copy_panel(self) -> None:
         focused = self.screen.focused
@@ -501,7 +533,7 @@ class RoundtableApp(App):
 
         if copied:
             self.notify(f"已复制 {len(text)} 个字符", timeout=2)
-            self.query_one("#main-input", Input).focus()
+            self.query_one("#main-input", RoundtableInput).focus()
         else:
             self.notify("复制失败，请检查 pyperclip 安装", severity="error", timeout=3)
 
