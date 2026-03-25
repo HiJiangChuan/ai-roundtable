@@ -26,6 +26,10 @@ from quick import QuickMode
 class RoundtableInput(Input):
     """Input that shows a placeholder token for multi-line/image pastes."""
 
+    BINDINGS = [
+        Binding("ctrl+v", "paste", "粘贴图片"),
+    ]
+
     def action_paste(self) -> None:
         """Ctrl+V: image on clipboard → image token; otherwise default paste."""
         try:
