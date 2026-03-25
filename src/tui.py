@@ -188,6 +188,7 @@ class RoundtableApp(App):
 
     BINDINGS = [
         Binding("ctrl+q", "quit",        "退出",     priority=True),
+        Binding("ctrl+r", "compare",     "互评"),
         Binding("ctrl+y", "copy_panel",  "复制面板"),
         Binding("ctrl+e", "export_md",   "导出MD"),
         Binding("ctrl+n", "new_session", "新建"),
@@ -468,6 +469,15 @@ class RoundtableApp(App):
             self._mode = "quick"
             self._apply_mode_ui()
             self.notify("已切换到快问模式", timeout=2)
+
+    def action_compare(self) -> None:
+        if self._mode != "quick":
+            self.notify("互评仅在 Rapid Fire 模式下可用", severity="warning", timeout=3)
+            return
+        if not self.quick_mode.history:
+            self.notify("请先提问，再发起互评", severity="warning", timeout=3)
+            return
+        self._run_compare()
 
     def action_export_md(self) -> None:
         sid = self.orchestrator._session_id
