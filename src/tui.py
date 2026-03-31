@@ -28,7 +28,7 @@ class RoundtableInput(Input):
     """Input that shows a placeholder token for multi-line/image pastes."""
 
     BINDINGS = [
-        Binding("ctrl+v", "paste", "粘贴图片"),
+        Binding("ctrl+v", "paste", show=False),
     ]
 
     def action_paste(self) -> None:
