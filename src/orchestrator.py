@@ -71,7 +71,7 @@ class Orchestrator:
     STATE_RUNNING = "running"
     STATE_ENDED = "ended"
 
-    def __init__(self, project_root: Path, config: Dict[str, Any]):
+    def __init__(self, project_root: Path, config: Dict[str, Any], history=None):
         self.project_root = Path(project_root)
         self.config = config
 
@@ -104,7 +104,7 @@ class Orchestrator:
             compress_max=deep_cfg.get('compress_summary_max', 80)
         )
 
-        self.history = History(config, project_root=self.project_root)
+        self.history = history if history is not None else History(config, project_root=self.project_root)
 
     @property
     def state(self) -> str:
@@ -560,9 +560,10 @@ class Orchestrator:
 
         summary = await self.cli_caller.call(moderator, summary_prompt)
 
-        # Export MD
+        # Append summary to MD and get path
         md_path = None
         try:
+            self.history.append_deep_summary(self._session_id, summary)
             md_path = self.history.export_md(self._session_id)
         except Exception:
             pass

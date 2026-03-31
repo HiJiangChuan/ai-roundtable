@@ -26,7 +26,6 @@ deep:
   timeout_seconds: 30
 
 history:
-  save_dir: "~/.ai-roundtable/history"
-  format: ["json", "md"]
+  obsidian_vault: "/Users/chuan/Workspace/notes"  # 留空则默认存至 ~/Documents/ai-roundtable/
 
-version: "0.0.7"
+version: "0.0.9"

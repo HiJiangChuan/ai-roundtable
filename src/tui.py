@@ -21,6 +21,7 @@ from orchestrator import Orchestrator
 from prompt_loader import PromptLoader
 from cli_caller import CliCaller
 from quick import QuickMode
+from history import History
 
 
 class RoundtableInput(Input):
@@ -225,8 +226,11 @@ class RoundtableApp(App):
         timeout = config.get("deep", {}).get("timeout_seconds", 30)
         self._cli_caller = CliCaller(config, timeout=timeout)
 
-        self.orchestrator = Orchestrator(project_root, config)
-        self.quick_mode = QuickMode(config, self._cli_caller, self._prompt_loader)
+        self._history = History(config, project_root=project_root)
+        self._history.init_quick_session()
+
+        self.orchestrator = Orchestrator(project_root, config, history=self._history)
+        self.quick_mode = QuickMode(config, self._cli_caller, self._prompt_loader, history=self._history)
         self._cb_queue: asyncio.Queue = None
         self._paste_buffers: dict = {}
         self._paste_count = 0
@@ -451,8 +455,7 @@ class RoundtableApp(App):
 
     def _handle_image_paste(self, img, inp: "RoundtableInput") -> None:
         from datetime import datetime
-        images_dir = Path.home() / ".ai-roundtable" / "images"
-        images_dir.mkdir(parents=True, exist_ok=True)
+        images_dir = self._history.attachments_dir
 
         self._image_count += 1
         filename = f"img_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{self._image_count}.png"
@@ -552,7 +555,8 @@ class RoundtableApp(App):
         self.query_one("#moderator-title", Static).update("🎙 主持人")
 
         self._mode = "quick"
-        self.orchestrator = Orchestrator(self.project_root, self.config)
+        self._history.new_quick_file()
+        self.orchestrator = Orchestrator(self.project_root, self.config, history=self._history)
         self.quick_mode.reset()
         self._paste_buffers.clear()
         self._image_buffers.clear()
