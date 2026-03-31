@@ -49,6 +49,26 @@ class QuickMode:
             except Exception:
                 pass
 
+        # Generate title from first question only
+        if len(self.history_local) == 1:
+            asyncio.create_task(self._generate_title(question, cb))
+
+    async def _generate_title(self, question: str, cb: Callable) -> None:
+        import re
+        prompt = (
+            "用4个汉字以内总结以下问题的核心主题，"
+            "只回复标题本身，不加标点、解释或换行：\n"
+            f"{question[:300]}"
+        )
+        try:
+            raw = await self.cli_caller.call('claude', prompt)
+            title = raw.strip().splitlines()[0]
+            title = re.sub(r'[\\/:*?"<>|【】《》\s]', '', title)[:10]
+            if title:
+                cb("session_title", title=title)
+        except Exception:
+            pass
+
     async def run_compare(self, cb: Callable) -> None:
         import asyncio
         if not self.history_local:

@@ -42,7 +42,7 @@ class TabSession:
 # ── History Modal ─────────────────────────────────────────────────────────────
 
 class HistoryModal(ModalScreen):
-    """Ctrl+O session history picker."""
+    """Ctrl+O session history picker — two-column: quick (left) / deep (right)."""
 
     BINDINGS = [
         Binding("escape", "dismiss", show=False),
@@ -55,9 +55,9 @@ class HistoryModal(ModalScreen):
         background: #000000 60%;
     }
     #modal-container {
-        width: 60;
+        width: 90;
         height: auto;
-        max-height: 30;
+        max-height: 36;
         background: #161b22;
         border: solid #30363d;
         padding: 1 2;
@@ -66,6 +66,28 @@ class HistoryModal(ModalScreen):
         height: 1;
         color: #58a6ff;
         margin-bottom: 1;
+    }
+    #modal-columns {
+        height: auto;
+        max-height: 28;
+    }
+    .col-panel {
+        width: 1fr;
+        height: auto;
+        max-height: 28;
+        padding: 0 1;
+    }
+    .col-panel-left {
+        border-right: solid #30363d;
+        padding-right: 2;
+    }
+    .col-header {
+        height: 1;
+        color: #58a6ff;
+        margin-bottom: 0;
+    }
+    .col-header.--active {
+        color: #e6edf3;
     }
     .session-item {
         height: 1;
@@ -76,51 +98,95 @@ class HistoryModal(ModalScreen):
         background: #1f6feb;
         color: #e6edf3;
     }
-    #modal-empty {
+    .col-empty {
         color: #3d444d;
         height: 1;
+        padding: 0 1;
     }
     """
 
     def __init__(self, sessions: list):
         super().__init__()
-        self._sessions = sessions
-        self._cursor = 0
+        self._quick = [s for s in sessions if s['type'] == 'quick']
+        self._deep  = [s for s in sessions if s['type'] == 'deep']
+        # col: 0=quick, 1=deep; row: index within column
+        self._col = 0 if self._quick else (1 if self._deep else 0)
+        self._rows = [0, 0]   # cursor row per column
+
+    def _col_list(self, col: int) -> list:
+        return self._quick if col == 0 else self._deep
 
     def compose(self) -> ComposeResult:
         with Vertical(id="modal-container"):
-            yield Static("历史对话  ↑↓ 选择  Enter 打开  Esc 关闭", id="modal-title")
-            if not self._sessions:
-                yield Static("暂无历史记录", id="modal-empty")
-            else:
-                for i, s in enumerate(self._sessions[:20]):
-                    tag  = "Q" if s['type'] == 'quick' else "D"
-                    cnt  = s.get('entries', 0)
-                    label = f"[{tag}] {s['date']}  {s['title'][:24]}  ({cnt}条)"
-                    cls  = "session-item --highlight" if i == 0 else "session-item"
-                    yield Static(label, id=f"si-{i}", classes=cls)
+            yield Static("历史对话   ↑↓ 选择   ←→ 切换   Enter 打开   Esc 关闭",
+                         id="modal-title")
+            with Horizontal(id="modal-columns"):
+                with Vertical(classes="col-panel col-panel-left"):
+                    hdr_cls = "col-header --active" if self._col == 0 else "col-header"
+                    yield Static("⚡ Rapid Fire", id="col-hdr-0", classes=hdr_cls)
+                    if self._quick:
+                        for i, s in enumerate(self._quick[:15]):
+                            hi = (self._col == 0 and i == 0)
+                            cls = "session-item --highlight" if hi else "session-item"
+                            yield Static(self._fmt(s, 0, i), id=f"q-{i}", classes=cls)
+                    else:
+                        yield Static("暂无记录", classes="col-empty")
+
+                with Vertical(classes="col-panel"):
+                    hdr_cls = "col-header --active" if self._col == 1 else "col-header"
+                    yield Static("🔬 Deep Dive", id="col-hdr-1", classes=hdr_cls)
+                    if self._deep:
+                        for i, s in enumerate(self._deep[:15]):
+                            hi = (self._col == 1 and i == 0)
+                            cls = "session-item --highlight" if hi else "session-item"
+                            yield Static(self._fmt(s, 1, i), id=f"d-{i}", classes=cls)
+                    else:
+                        yield Static("暂无记录", classes="col-empty")
+
+    def _fmt(self, s: dict, col: int, idx: int) -> str:
+        unit = "条" if col == 0 else "轮"
+        cnt  = s.get('entries', 0)
+        date = s['date'][5:]   # MM-DD
+        return f"{date}  {s['title'][:26]}  ({cnt}{unit})"
+
+    def _item_id(self, col: int, row: int) -> str:
+        return f"q-{row}" if col == 0 else f"d-{row}"
 
     def on_key(self, event: events.Key) -> None:
-        if not self._sessions:
-            return
-        n = min(len(self._sessions), 20)
-        if event.key == "up":
-            self._move(-1, n)
-        elif event.key == "down":
-            self._move(1, n)
-
-    def _move(self, delta: int, n: int) -> None:
-        old = self._cursor
-        self._cursor = (self._cursor + delta) % n
-        # Update highlight
-        old_w = self.query_one(f"#si-{old}", Static)
-        new_w = self.query_one(f"#si-{self._cursor}", Static)
-        old_w.set_classes("session-item")
-        new_w.set_classes("session-item --highlight")
+        key = event.key
+        if key in ("up", "down"):
+            lst = self._col_list(self._col)
+            if not lst:
+                return
+            n   = min(len(lst), 15)
+            old = self._rows[self._col]
+            new = (old + (-1 if key == "up" else 1)) % n
+            self._rows[self._col] = new
+            self.query_one(f"#{self._item_id(self._col, old)}", Static).set_classes("session-item")
+            self.query_one(f"#{self._item_id(self._col, new)}", Static).set_classes("session-item --highlight")
+        elif key in ("left", "right"):
+            target = 1 if key == "right" else 0
+            if target == self._col:
+                return
+            # Unhighlight current
+            lst_old = self._col_list(self._col)
+            if lst_old:
+                row_old = self._rows[self._col]
+                self.query_one(f"#{self._item_id(self._col, row_old)}", Static).set_classes("session-item")
+            # Update header styles
+            self.query_one(f"#col-hdr-{self._col}", Static).set_classes("col-header")
+            self._col = target
+            self.query_one(f"#col-hdr-{self._col}", Static).set_classes("col-header --active")
+            # Highlight new column's current row
+            lst_new = self._col_list(self._col)
+            if lst_new:
+                row_new = self._rows[self._col]
+                self.query_one(f"#{self._item_id(self._col, row_new)}", Static).set_classes("session-item --highlight")
 
     def action_select(self) -> None:
-        if self._sessions:
-            self.dismiss(self._sessions[self._cursor])
+        lst = self._col_list(self._col)
+        if lst:
+            self.dismiss(lst[self._rows[self._col]])
         else:
             self.dismiss(None)
 
@@ -358,6 +424,10 @@ class RoundtableApp(App):
         Binding("ctrl+o", "history",        "历史"),
         Binding("ctrl+t", "toggle_mode",    "切换模式"),
         Binding("ctrl+l", "toggle_layout",  "横竖"),
+        Binding("ctrl+1", "switch_tab_n('1')", show=False),
+        Binding("ctrl+2", "switch_tab_n('2')", show=False),
+        Binding("ctrl+3", "switch_tab_n('3')", show=False),
+        Binding("ctrl+4", "switch_tab_n('4')", show=False),
     ]
 
     def __init__(self, project_root: Path, config: Dict[str, Any],
@@ -462,7 +532,8 @@ class RoundtableApp(App):
         self._sessions[tab_id] = session
 
         tabs = self.query_one("#session-tabs", Tabs)
-        tabs.add_tab(Tab(title[:15], id=tab_id))
+        num = len(self._sessions)
+        tabs.add_tab(Tab(f"{num}.{title[:15]}", id=tab_id))
         self._switch_to_tab(tab_id)
 
         return tab_id
@@ -509,7 +580,35 @@ class RoundtableApp(App):
 
         tabs.remove_tab(tab_id)
         del self._sessions[tab_id]
+        self._renumber_tabs()
         self._switch_to_tab(neighbour)
+
+    def _renumber_tabs(self) -> None:
+        """Refresh all tab labels to keep 1-based numbering consistent."""
+        tabs = self.query_one("#session-tabs", Tabs)
+        for i, (tid, session) in enumerate(self._sessions.items(), start=1):
+            try:
+                tab = tabs.query_one(f"#{tid}", Tab)
+                tab.label = f"{i}.{session.title[:15]}"
+            except Exception:
+                pass
+
+    def _rename_quick_file(self, title: str) -> None:
+        """Rename 001.md → 001-title.md and update session references."""
+        session = self._sessions.get(self._active_tab)
+        if not session or not session.quick_file:
+            return
+        old_path = session.quick_file
+        if '-' in old_path.stem:   # already renamed
+            return
+        new_path = old_path.parent / f"{old_path.stem}-{title}.md"
+        try:
+            old_path.rename(new_path)
+            session.quick_file = new_path
+            if session.quick_mode:
+                session.quick_mode.quick_file = new_path
+        except Exception:
+            pass
 
     def _update_active_tab_title(self, title: str) -> None:
         session = self._sessions.get(self._active_tab)
@@ -517,9 +616,11 @@ class RoundtableApp(App):
             return
         session.title = title[:15]
         try:
+            ids = list(self._sessions.keys())
+            num = ids.index(self._active_tab) + 1
             tabs = self.query_one("#session-tabs", Tabs)
-            tab  = tabs.query_one(f"#tab-{self._active_tab.split('-')[1]}", Tab)
-            tab.label = title[:15]
+            tab  = tabs.query_one(f"#{self._active_tab}", Tab)
+            tab.label = f"{num}.{title[:15]}"
         except Exception:
             pass
 
@@ -664,14 +765,6 @@ class RoundtableApp(App):
             log.write(Markdown(content))
             log.write("")
 
-            # Update tab title from first question
-            if role == "quick" and not _replay:
-                session = self._sessions.get(self._active_tab)
-                if session and session.quick_mode and session.title == "新对话":
-                    if session.quick_mode.history_local:
-                        first_q = session.quick_mode.history_local[-1].get('question', '')
-                        if first_q:
-                            self._update_active_tab_title(first_q)
 
         elif event_type == "moderator_output":
             moderator = kwargs.get("moderator", "")
@@ -704,6 +797,13 @@ class RoundtableApp(App):
             log.write(f"[dim]── @直问: {escape(question[:60])} ──[/dim]")
             log.write(Markdown(content))
             log.write("")
+
+        elif event_type == "session_title":
+            if not _replay:
+                title = kwargs.get("title", "")
+                if title:
+                    self._update_active_tab_title(title)
+                    self._rename_quick_file(title)
 
         elif event_type == "status":
             if _replay:
@@ -864,6 +964,12 @@ class RoundtableApp(App):
                              preload_entries=entries, quick_file=Path(fpath))
         elif s_type == 'deep':
             self.notify(f"深度讨论仅供查阅：{fpath}", timeout=4)
+
+    def action_switch_tab_n(self, n: str) -> None:
+        ids = list(self._sessions.keys())
+        idx = int(n) - 1
+        if idx < len(ids):
+            self._switch_to_tab(ids[idx])
 
     def action_toggle_layout(self) -> None:
         panels = self.query_one("#guest-panels")

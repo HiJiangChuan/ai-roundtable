@@ -62,10 +62,12 @@ class History:
     def new_quick_session(self) -> Tuple[str, Path]:
         """Create a new numbered quick session file. Returns (session_id, path)."""
         today = datetime.now().strftime('%Y-%m-%d')
-        existing = sorted(self.quick_dir.glob(f"{today}-*.md"))
+        day_dir = self.quick_dir / today
+        day_dir.mkdir(parents=True, exist_ok=True)
+        existing = sorted(day_dir.glob('*.md'))
         num = len(existing) + 1
         session_id = f"{num:03d}"
-        path = self.quick_dir / f"{today}-{session_id}.md"
+        path = day_dir / f"{session_id}.md"
         self._write_quick_frontmatter(path, today, session_id)
         return session_id, path
 
@@ -142,17 +144,17 @@ class History:
         return entries[-n:]
 
     def get_sessions_for_modal(self) -> List[Dict[str, Any]]:
-        """Scan quick/ and rounds/ dirs, return metadata list for history modal."""
+        """Scan quick/DATE/ and rounds/DATE/ dirs, return metadata list for history modal."""
         sessions = []
 
-        # Quick sessions
-        for md_file in sorted(self.quick_dir.glob('????-??-??-???.md'), reverse=True):
+        # Quick sessions: quick/YYYY-MM-DD/NNN.md
+        for md_file in sorted(self.quick_dir.glob('????-??-??/*.md'), reverse=True):
             meta = self._parse_quick_meta(md_file)
             if meta:
                 sessions.append(meta)
 
-        # Deep sessions
-        for md_file in sorted(self.deep_dir.glob('*.md'), reverse=True):
+        # Deep sessions: rounds/YYYY-MM-DD/topic.md
+        for md_file in sorted(self.deep_dir.glob('????-??-??/*.md'), reverse=True):
             meta = self._parse_deep_meta(md_file)
             if meta:
                 sessions.append(meta)
@@ -165,12 +167,11 @@ class History:
     def _parse_quick_meta(self, path: Path) -> Optional[Dict]:
         try:
             content = path.read_text(encoding='utf-8')
-            # Get first question title
             m = re.search(r'## \d{2}:\d{2} — (.+)', content)
             title = m.group(1).strip() if m else '空会话'
             count = len(re.findall(r'^## \d{2}:\d{2}', content, re.MULTILINE))
-            # Date from filename: 2026-03-31-001.md
-            date_str = path.stem[:10]
+            # Date from parent directory name: quick/2026-03-31/001.md
+            date_str = path.parent.name
             return {
                 'type': 'quick',
                 'title': title[:30],
@@ -188,8 +189,8 @@ class History:
             m = re.search(r'^title: (.+)$', content, re.MULTILINE)
             title = m.group(1).strip() if m else path.stem
             rounds = len(re.findall(r'^## Round \d+', content, re.MULTILINE))
-            date_m = re.search(r'^date: (.+)$', content, re.MULTILINE)
-            date_str = date_m.group(1).strip() if date_m else ''
+            # Date from parent directory name: rounds/2026-03-31/topic.md
+            date_str = path.parent.name
             return {
                 'type': 'deep',
                 'title': title[:30],
@@ -215,10 +216,11 @@ class History:
         sid   = f"session_{ts}"
         today = datetime.now().strftime('%Y-%m-%d')
 
-        safe_topic = re.sub(r'[\\/:*?"<>|]', '', topic)[:30].strip()
-        md_path = self.deep_dir / f"{today} {safe_topic}.md"
-        if md_path.exists():
-            md_path = self.deep_dir / f"{today} {safe_topic} {ts[-6:]}.md"
+        day_dir = self.deep_dir / today
+        day_dir.mkdir(parents=True, exist_ok=True)
+        existing = sorted(day_dir.glob('*.md'))
+        num = len(existing) + 1
+        md_path = day_dir / f"{num:03d}.md"
 
         self._sessions[sid] = {
             'session_id': sid,
