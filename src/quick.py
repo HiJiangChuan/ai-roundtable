@@ -1,18 +1,20 @@
 """快问模式逻辑"""
+from pathlib import Path
 from typing import Dict, List, Callable, Any, Optional
 
 
 class QuickMode:
-    def __init__(self, config: dict, cli_caller, prompt_loader, history=None):
+    def __init__(self, config: dict, cli_caller, prompt_loader,
+                 history=None, quick_file: Optional[Path] = None):
         self.config = config
         self.cli_caller = cli_caller
         self.prompts = prompt_loader
-        self.history = history  # History instance (optional)
+        self.history = history
+        self.quick_file = quick_file          # file this session writes to
         self.agents = ["claude", "gemini", "codex"]
-        self.history_local: List[Dict[str, Any]] = []  # [{question, responses}]
+        self.history_local: List[Dict[str, Any]] = []
 
     def _build_context_history(self) -> str:
-        """将历史对话格式化为上下文字符串"""
         if not self.history_local:
             return ""
         lines = ["[历史对话]"]
@@ -23,7 +25,6 @@ class QuickMode:
         return "\n".join(lines)
 
     async def run_question(self, question: str, cb: Callable) -> None:
-        """并行问三个 AI，结果更新到各自面板"""
         import asyncio
         context = self._build_context_history()
         responses = {}
@@ -42,14 +43,13 @@ class QuickMode:
         await asyncio.gather(*[ask(ag) for ag in self.agents])
         self.history_local.append({"question": question, "responses": responses})
 
-        if self.history:
+        if self.history and self.quick_file:
             try:
-                self.history.append_quick_entry(question, responses)
+                self.history.append_quick_entry(question, responses, path=self.quick_file)
             except Exception:
                 pass
 
     async def run_compare(self, cb: Callable) -> None:
-        """三个 AI 互评对方本轮回答"""
         import asyncio
         if not self.history_local:
             cb("error", message="没有可互评的回答")
@@ -78,14 +78,13 @@ class QuickMode:
 
         await asyncio.gather(*[critique(ag) for ag in self.agents])
 
-        if self.history:
+        if self.history and self.quick_file:
             try:
-                self.history.append_quick_compare(compare_responses)
+                self.history.append_quick_compare(compare_responses, path=self.quick_file)
             except Exception:
                 pass
 
     def get_context_for_deep(self) -> Dict[str, Any]:
-        """获取用于升级到深度讨论的上下文（最后一次问答）"""
         if not self.history_local:
             return {}
         return self.history_local[-1]

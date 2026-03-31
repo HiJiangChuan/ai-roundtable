@@ -1,16 +1,16 @@
 """
 History - Session persistence in JSON + Obsidian Markdown formats.
 
-Quick mode : daily file  (base/quick/2026-03-31.md), append per entry
-Deep mode  : per-session file (base/deep/2026-03-31 topic.md), append per round
-Images     : base/attachments/img_xxx.png  →  ![[attachments/img_xxx.png]] in MD
+Quick mode : daily numbered files  (base/quick/2026-03-31-001.md)
+Deep mode  : per-session file      (base/rounds/2026-03-31 topic.md)
+Images     : base/attachments/img_xxx.png  →  ![[attachments/img.png]] in MD
 """
 import json
 import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 
 AGENT_CALLOUT = {
@@ -22,7 +22,6 @@ SPEAKING_ORDER = ['claude', 'codex', 'gemini']
 
 
 def _callout(kind: str, title: str, body: str) -> str:
-    """Render an Obsidian callout block."""
     lines = [f"> [!{kind}]+ {title}"]
     for line in body.splitlines():
         lines.append(f"> {line}" if line.strip() else ">")
@@ -31,7 +30,6 @@ def _callout(kind: str, title: str, body: str) -> str:
 
 
 def _md_image(text: str) -> str:
-    """Convert [附件图片: /full/path/img.png] → ![[attachments/img.png]]"""
     return re.sub(
         r'\[附件图片: .+?/([^\s/\n]+)\]',
         lambda m: f"![[attachments/{m.group(1)}]]",
@@ -57,43 +55,29 @@ class History:
         for d in (self.quick_dir, self.deep_dir, self.attachments_dir):
             d.mkdir(parents=True, exist_ok=True)
 
-        # Deep dive sessions: session_id → {topic, started_at, rounds, md_path}
         self._sessions: Dict[str, Dict[str, Any]] = {}
-
-        # Quick mode state
-        self._quick_path: Optional[Path] = None
 
     # ── Quick mode ────────────────────────────────────────────────────────────
 
-    def init_quick_session(self) -> Path:
-        """Open (or create) today's quick file. Call once at TUI startup."""
+    def new_quick_session(self) -> Tuple[str, Path]:
+        """Create a new numbered quick session file. Returns (session_id, path)."""
         today = datetime.now().strftime('%Y-%m-%d')
-        path = self._quick_file_path(today, force_new=False)
-        if not path.exists():
-            self._write_quick_frontmatter(path, today)
-        self._quick_path = path
-        return path
+        existing = sorted(self.quick_dir.glob(f"{today}-*.md"))
+        num = len(existing) + 1
+        session_id = f"{num:03d}"
+        path = self.quick_dir / f"{today}-{session_id}.md"
+        self._write_quick_frontmatter(path, today, session_id)
+        return session_id, path
 
-    def new_quick_file(self) -> Path:
-        """Create a fresh quick file for today (triggered by Ctrl+N)."""
-        today = datetime.now().strftime('%Y-%m-%d')
-        path = self._quick_file_path(today, force_new=True)
-        self._write_quick_frontmatter(path, today)
-        self._quick_path = path
-        return path
-
-    def append_quick_entry(self, question: str, responses: Dict[str, str]) -> None:
-        """Append one Q&A block to the current quick file."""
-        if self._quick_path is None:
-            self.init_quick_session()
+    def append_quick_entry(self, question: str, responses: Dict[str, str],
+                           path: Optional[Path] = None) -> None:
+        if path is None:
+            return
 
         now     = datetime.now().strftime('%H:%M')
         short_q = question[:30].replace('\n', ' ').strip()
 
-        blocks = [
-            f"\n## {now} — {short_q}\n",
-            f"**Q:** {_md_image(question)}\n",
-        ]
+        blocks = [f"\n## {now} — {short_q}\n", f"**Q:** {_md_image(question)}\n"]
         for agent in SPEAKING_ORDER:
             if agent not in responses:
                 continue
@@ -101,12 +85,12 @@ class History:
             blocks.append(_callout(kind, f"{icon} {agent.upper()}", _md_image(responses[agent])))
         blocks.append("---\n")
 
-        with open(self._quick_path, 'a', encoding='utf-8') as f:
+        with open(path, 'a', encoding='utf-8') as f:
             f.write('\n'.join(blocks))
 
-    def append_quick_compare(self, responses: Dict[str, str]) -> None:
-        """Append an inter-critique block to the current quick file."""
-        if not self._quick_path or not self._quick_path.exists():
+    def append_quick_compare(self, responses: Dict[str, str],
+                             path: Optional[Path] = None) -> None:
+        if path is None or not path.exists():
             return
 
         now = datetime.now().strftime('%H:%M')
@@ -115,32 +99,117 @@ class History:
             if agent not in responses:
                 continue
             kind, icon = AGENT_CALLOUT[agent]
-            blocks.append(_callout(kind, f"{icon} {agent.upper()} critique", _md_image(responses[agent])))
+            blocks.append(_callout(kind, f"{icon} {agent.upper()} critique",
+                                   _md_image(responses[agent])))
         blocks.append("---\n")
 
-        with open(self._quick_path, 'a', encoding='utf-8') as f:
+        with open(path, 'a', encoding='utf-8') as f:
             f.write('\n'.join(blocks))
 
-    def _quick_file_path(self, today: str, force_new: bool) -> Path:
-        base = self.quick_dir / f"{today}.md"
-        if not force_new:
-            return base
-        for ch in 'bcdefghijklmnopqrstuvwxyz':
-            p = self.quick_dir / f"{today}-{ch}.md"
-            if not p.exists():
-                return p
-        return self.quick_dir / f"{today}-extra.md"
+    def load_last_entries(self, path: Path, n: int = 3) -> List[Dict[str, Any]]:
+        """Parse a quick session file and return last n Q&A entries."""
+        if not path.exists():
+            return []
+        content = path.read_text(encoding='utf-8')
 
-    def _write_quick_frontmatter(self, path: Path, today: str) -> None:
+        # Split on ## HH:MM — title sections
+        sections = re.split(r'\n(?=## \d{2}:\d{2} — )', content)
+        entries = []
+
+        for section in sections:
+            if not section.startswith('## '):
+                continue
+            # Extract question
+            q_match = re.search(r'\*\*Q:\*\* (.+?)(?=\n>', section, re.DOTALL)
+            if not q_match:
+                continue
+            question = q_match.group(1).strip()
+
+            # Extract responses per agent
+            responses = {}
+            for agent in SPEAKING_ORDER:
+                icon_map = {'claude': '🔵', 'codex': '🟡', 'gemini': '🟢'}
+                icon = icon_map[agent]
+                pattern = rf'> \[!\w+\]\+ {re.escape(icon)} {agent.upper()}\n((?:>.*\n?)*)'
+                m = re.search(pattern, section, re.IGNORECASE)
+                if m:
+                    body = re.sub(r'^> ?', '', m.group(1), flags=re.MULTILINE).strip()
+                    responses[agent] = body
+
+            if question:
+                entries.append({'question': question, 'responses': responses})
+
+        return entries[-n:]
+
+    def get_sessions_for_modal(self) -> List[Dict[str, Any]]:
+        """Scan quick/ and rounds/ dirs, return metadata list for history modal."""
+        sessions = []
+
+        # Quick sessions
+        for md_file in sorted(self.quick_dir.glob('????-??-??-???.md'), reverse=True):
+            meta = self._parse_quick_meta(md_file)
+            if meta:
+                sessions.append(meta)
+
+        # Deep sessions
+        for md_file in sorted(self.deep_dir.glob('*.md'), reverse=True):
+            meta = self._parse_deep_meta(md_file)
+            if meta:
+                sessions.append(meta)
+
+        # Sort by date desc
+        sessions.sort(key=lambda x: x.get('mtime', 0), reverse=True)
+        return sessions
+
+    def _parse_quick_meta(self, path: Path) -> Optional[Dict]:
+        try:
+            content = path.read_text(encoding='utf-8')
+            # Get first question title
+            m = re.search(r'## \d{2}:\d{2} — (.+)', content)
+            title = m.group(1).strip() if m else '空会话'
+            count = len(re.findall(r'^## \d{2}:\d{2}', content, re.MULTILINE))
+            # Date from filename: 2026-03-31-001.md
+            date_str = path.stem[:10]
+            return {
+                'type': 'quick',
+                'title': title[:30],
+                'file': path,
+                'date': date_str,
+                'entries': count,
+                'mtime': path.stat().st_mtime,
+            }
+        except Exception:
+            return None
+
+    def _parse_deep_meta(self, path: Path) -> Optional[Dict]:
+        try:
+            content = path.read_text(encoding='utf-8')
+            m = re.search(r'^title: (.+)$', content, re.MULTILINE)
+            title = m.group(1).strip() if m else path.stem
+            rounds = len(re.findall(r'^## Round \d+', content, re.MULTILINE))
+            date_m = re.search(r'^date: (.+)$', content, re.MULTILINE)
+            date_str = date_m.group(1).strip() if date_m else ''
+            return {
+                'type': 'deep',
+                'title': title[:30],
+                'file': path,
+                'date': date_str,
+                'entries': rounds,
+                'mtime': path.stat().st_mtime,
+            }
+        except Exception:
+            return None
+
+    def _write_quick_frontmatter(self, path: Path, today: str, session_id: str) -> None:
         path.write_text(
-            f"---\ndate: {today}\ntype: quick\ntags:\n  - ai-roundtable\n  - quick\n---\n",
+            f"---\ndate: {today}\nsession: {session_id}\ntype: quick\n"
+            f"tags:\n  - ai-roundtable\n  - quick\n---\n",
             encoding='utf-8',
         )
 
     # ── Deep Dive mode ────────────────────────────────────────────────────────
 
     def new_session(self, topic: str) -> str:
-        """Create a new deep-dive session. Returns session_id."""
         ts    = datetime.now().strftime('%Y%m%d_%H%M%S')
         sid   = f"session_{ts}"
         today = datetime.now().strftime('%Y-%m-%d')
@@ -162,7 +231,6 @@ class History:
         return sid
 
     def add_round(self, session_id: str, round_data: Dict[str, Any]) -> None:
-        """Append round to in-memory state, JSON backup, and MD file (real-time)."""
         if session_id not in self._sessions:
             return
         self._sessions[session_id]['rounds'].append(round_data)
@@ -171,7 +239,6 @@ class History:
         self._save_json(session_id)
 
     def append_deep_summary(self, session_id: str, summary: str) -> None:
-        """Append final summary section to the deep-dive MD file."""
         if session_id not in self._sessions:
             return
         md_path = Path(self._sessions[session_id]['md_path'])
@@ -179,16 +246,14 @@ class History:
             f.write(f"\n---\n\n## Summary\n\n{_md_image(summary)}\n")
 
     def export_md(self, session_id: str) -> Path:
-        """Return the MD path (already written in real-time)."""
         if session_id not in self._sessions:
             raise ValueError(f"Session not found: {session_id}")
         return Path(self._sessions[session_id]['md_path'])
 
-    # kept for backward compat
     def save(self, session_id: str, data: Dict[str, Any]) -> None:
         self._save_json(session_id)
 
-    # ── Internal helpers ──────────────────────────────────────────────────────
+    # ── Internals ─────────────────────────────────────────────────────────────
 
     def _write_deep_header(self, path: Path, topic: str, today: str) -> None:
         path.write_text(
@@ -205,7 +270,6 @@ class History:
         raw       = round_data.get('moderator_raw', '')
 
         blocks = [f"\n## Round {rnd}\n"]
-
         for agent in SPEAKING_ORDER:
             if agent not in speeches:
                 continue
@@ -219,7 +283,8 @@ class History:
                 for k in ['矛盾点', '下一问', '行动分配', '本轮摘要']
                 if k in parsed
             )
-            blocks.append(_callout('abstract', f"{mod_icon} Moderator ({moderator.upper()})", body))
+            blocks.append(_callout('abstract',
+                                   f"{mod_icon} Moderator ({moderator.upper()})", body))
         elif raw:
             blocks.append(_callout('abstract', '🎙 Moderator', raw))
 
@@ -230,7 +295,8 @@ class History:
 
         try:
             content = path.read_text(encoding='utf-8')
-            content = re.sub(r'^rounds: \d+', f'rounds: {rnd}', content, count=1, flags=re.MULTILINE)
+            content = re.sub(r'^rounds: \d+', f'rounds: {rnd}', content,
+                             count=1, flags=re.MULTILINE)
             path.write_text(content, encoding='utf-8')
         except Exception:
             pass
