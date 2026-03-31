@@ -52,7 +52,7 @@ class HistoryModal(ModalScreen):
     CSS = """
     HistoryModal {
         align: center middle;
-        background: rgba(0, 0, 0, 60%);
+        background: #000000 60%;
     }
     #modal-container {
         width: 60;
