@@ -157,7 +157,8 @@ class History:
             if meta:
                 sessions.append(meta)
 
-        # Sort by date desc
+        # Filter out empty sessions, sort by date desc
+        sessions = [s for s in sessions if s.get('entries', 0) > 0]
         sessions.sort(key=lambda x: x.get('mtime', 0), reverse=True)
         return sessions
 
