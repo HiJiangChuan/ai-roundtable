@@ -227,7 +227,6 @@ class RoundtableApp(App):
         Binding("ctrl+q", "quit",        "退出",     priority=True),
         Binding("ctrl+r", "compare",     "互评"),
         Binding("ctrl+y", "copy_panel",  "复制面板"),
-        Binding("ctrl+e", "export_md",   "导出MD"),
         Binding("ctrl+n", "new_session", "新建"),
         Binding("ctrl+t", "toggle_mode", "切换模式"),
         Binding("ctrl+l", "toggle_layout", "横竖"),
@@ -547,17 +546,6 @@ class RoundtableApp(App):
             self.notify("请先提问，再发起互评", severity="warning", timeout=3)
             return
         self._run_compare()
-
-    def action_export_md(self) -> None:
-        sid = self.orchestrator._session_id
-        if not sid:
-            self.notify("没有进行中的会话", severity="warning", timeout=3)
-            return
-        try:
-            path = self.orchestrator.history.export_md(sid)
-            self.notify(f"已导出 → {path}", timeout=4)
-        except Exception as e:
-            self.notify(f"导出失败: {e}", severity="error", timeout=5)
 
     def action_new_session(self) -> None:
         if self._mode == "deep" and self.orchestrator.state not in ("idle", "ended"):
