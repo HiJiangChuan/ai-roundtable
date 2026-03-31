@@ -5,6 +5,7 @@ ais:
     flags: ["--dangerously-skip-permissions"]
     color: "blue"
     icon: "🔵"
+    timeout: 60
   gemini:
     cmd: "gemini"
     prompt_flag: "-p"
@@ -18,15 +19,16 @@ ais:
     flags: []
     color: "yellow"
     icon: "🟡"
+    timeout: 60
 
 deep:
   moderator_rotation: ["gemini", "codex", "claude"]
   speaking_order: ["claude", "codex", "gemini"]
   full_rounds_kept: 3
   compress_summary_max: 80
-  timeout_seconds: 30
+  timeout_seconds: 60
 
 history:
   obsidian_vault: "/Users/chuan/Workspace/notes"  # 留空则默认存至 ~/Documents/ai-roundtable/
 
-version: "0.0.12"
+version: "0.0.13"
