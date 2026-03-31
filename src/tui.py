@@ -89,12 +89,30 @@ Footer {
 #guest-panels {
     height: 1fr;
     padding: 1 2 0 2;
+    layout: vertical;
 }
 
 .agent-wrap {
     height: 1fr;
     margin-bottom: 1;
     border-left: thick #30363d;
+}
+
+/* ── horizontal layout ────────────────────────────────────── */
+
+#guest-panels.horizontal {
+    layout: horizontal;
+}
+
+#guest-panels.horizontal .agent-wrap {
+    width: 1fr;
+    height: 1fr;
+    margin-bottom: 0;
+    margin-right: 1;
+}
+
+#guest-panels.horizontal .agent-wrap:last-of-type {
+    margin-right: 0;
 }
 
 .agent-wrap.claude { border-left: thick #1f6feb; }
@@ -212,6 +230,7 @@ class RoundtableApp(App):
         Binding("ctrl+e", "export_md",   "导出MD"),
         Binding("ctrl+n", "new_session", "新建"),
         Binding("ctrl+t", "toggle_mode", "切换模式"),
+        Binding("ctrl+l", "toggle_layout", "横竖"),
     ]
 
     def __init__(self, project_root: Path, config: Dict[str, Any],
@@ -599,6 +618,12 @@ class RoundtableApp(App):
             self.query_one("#main-input", RoundtableInput).focus()
         else:
             self.notify("复制失败，请检查 pyperclip 安装", severity="error", timeout=3)
+
+    def action_toggle_layout(self) -> None:
+        panels = self.query_one("#guest-panels")
+        panels.toggle_class("horizontal")
+        label = "横向" if "horizontal" in panels.classes else "竖向"
+        self.notify(label, timeout=1)
 
     def action_quit(self) -> None:
         self.exit()
