@@ -120,7 +120,7 @@ class History:
             if not section.startswith('## '):
                 continue
             # Extract question
-            q_match = re.search(r'\*\*Q:\*\* (.+?)(?=\n>', section, re.DOTALL)
+            q_match = re.search(r'\*\*Q:\*\* (.+?)(?=\n>)', section, re.DOTALL)
             if not q_match:
                 continue
             question = q_match.group(1).strip()
