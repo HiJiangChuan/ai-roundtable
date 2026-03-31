@@ -59,8 +59,9 @@ class CliCaller:
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
 
             try:
@@ -71,9 +72,10 @@ class CliCaller:
             except asyncio.TimeoutError:
                 try:
                     proc.kill()
+                    await proc.communicate()
                 except Exception:
                     pass
-                return "[无响应：超时]"
+                return f"[无响应：超时 {self.timeout}s]"
 
             if proc.returncode != 0:
                 err_msg = strip_ansi(stderr.decode('utf-8', errors='replace')).strip()
