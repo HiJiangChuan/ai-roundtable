@@ -11,6 +11,7 @@ ais:
     flags: ["--yolo"]
     color: "green"
     icon: "🟢"
+    timeout: 60
   codex:
     cmd: "codex"
     subcommand: "exec"
