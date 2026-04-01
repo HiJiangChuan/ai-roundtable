@@ -428,7 +428,7 @@ class RoundtableApp(App):
     ENABLE_COMMAND_PALETTE = False
 
     BINDINGS = [
-        Binding("ctrl+q", "quit",           "退出",     priority=True),
+        Binding("escape", "quit",            "退出"),
         Binding("ctrl+r", "compare",        "互评"),
         Binding("ctrl+y", "copy_panel",     "复制面板"),
         Binding("ctrl+n", "new_tab",        "新建"),
