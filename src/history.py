@@ -5,7 +5,6 @@ Quick mode : daily numbered files  (base/quick/2026-03-31-001.md)
 Deep mode  : per-session file      (base/rounds/2026-03-31 topic.md)
 Images     : base/attachments/img_xxx.png  →  ![[attachments/img.png]] in MD
 """
-import json
 import os
 import re
 from datetime import datetime
@@ -230,7 +229,6 @@ class History:
             'md_path':    str(md_path),
         }
         self._write_deep_header(md_path, topic, today)
-        self._save_json(sid)
         return sid
 
     def add_round(self, session_id: str, round_data: Dict[str, Any]) -> None:
@@ -239,7 +237,6 @@ class History:
         self._sessions[session_id]['rounds'].append(round_data)
         md_path = Path(self._sessions[session_id]['md_path'])
         self._append_deep_round(md_path, round_data)
-        self._save_json(session_id)
 
     def append_deep_summary(self, session_id: str, summary: str) -> None:
         if session_id not in self._sessions:
@@ -252,9 +249,6 @@ class History:
         if session_id not in self._sessions:
             raise ValueError(f"Session not found: {session_id}")
         return Path(self._sessions[session_id]['md_path'])
-
-    def save(self, session_id: str, data: Dict[str, Any]) -> None:
-        self._save_json(session_id)
 
     # ── Internals ─────────────────────────────────────────────────────────────
 
@@ -304,8 +298,3 @@ class History:
         except Exception:
             pass
 
-    def _save_json(self, session_id: str) -> None:
-        data = {k: v for k, v in self._sessions[session_id].items() if k != 'md_path'}
-        (self.base_dir / f"{session_id}.json").write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8'
-        )

@@ -78,8 +78,8 @@ class QuickMode:
             title = re.sub(r'[\\/:*?"<>|【】《》\s]', '', title)[:10]
             if title:
                 cb("session_title", title=title, quick_file=self.quick_file)
-        except Exception:
-            pass
+        except Exception as e:
+            cb("error", message=f"标题生成失败: {e}")
 
     async def run_compare(self, cb: Callable) -> None:
         import asyncio

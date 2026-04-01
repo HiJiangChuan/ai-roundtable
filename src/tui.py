@@ -103,6 +103,11 @@ class HistoryModal(ModalScreen):
         height: 1;
         padding: 0 1;
     }
+    .col-more {
+        color: #3d444d;
+        height: 1;
+        padding: 0 1;
+    }
     """
 
     def __init__(self, sessions: list):
@@ -129,6 +134,8 @@ class HistoryModal(ModalScreen):
                             hi = (self._col == 0 and i == 0)
                             cls = "session-item --highlight" if hi else "session-item"
                             yield Static(self._fmt(s, 0, i), id=f"q-{i}", classes=cls)
+                        if len(self._quick) > 15:
+                            yield Static(f"…还有 {len(self._quick) - 15} 条", classes="col-more")
                     else:
                         yield Static("暂无记录", classes="col-empty")
 
@@ -140,6 +147,8 @@ class HistoryModal(ModalScreen):
                             hi = (self._col == 1 and i == 0)
                             cls = "session-item --highlight" if hi else "session-item"
                             yield Static(self._fmt(s, 1, i), id=f"d-{i}", classes=cls)
+                        if len(self._deep) > 15:
+                            yield Static(f"…还有 {len(self._deep) - 15} 条", classes="col-more")
                     else:
                         yield Static("暂无记录", classes="col-empty")
 
@@ -1029,6 +1038,8 @@ class RoundtableApp(App):
         idx = int(n) - 1
         if idx < len(ids):
             self._switch_to_tab(ids[idx])
+        else:
+            self.notify(f"没有第 {n} 个标签页", severity="warning", timeout=1)
 
     def action_toggle_layout(self) -> None:
         panels = self.query_one("#guest-panels")

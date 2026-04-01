@@ -171,7 +171,7 @@ class Orchestrator:
             self._last_moderator_parsed = {
                 '矛盾点': '议题初始',
                 '下一问': topic,
-                '行动分配': 'Claude：陈述立场 - 阐明核心立场\nCodex：陈述立场 - 阐明核心立场\nGemini：陈述立场 - 阐明核心立场',
+                '行动分配': '',
                 '本轮摘要': f'议题：{topic}'
             }
             cb("moderator_output", moderator=moderator, round=0,
@@ -219,7 +219,7 @@ class Orchestrator:
             self._last_moderator_parsed = {
                 '矛盾点': '议题初始',
                 '下一问': quick_context.get('question', topic),
-                '行动分配': 'Claude：陈述立场 - 阐明核心立场\nCodex：陈述立场 - 阐明核心立场\nGemini：陈述立场 - 阐明核心立场',
+                '行动分配': '',
                 '本轮摘要': f'议题：{topic}'
             }
 
@@ -277,6 +277,11 @@ class Orchestrator:
             action_assignments = parse_action_assignments(
                 self._last_moderator_parsed['行动分配']
             )
+        if not action_assignments:
+            action_assignments = {
+                agent: {'type': '陈述立场', 'instruction': '阐明你的核心立场'}
+                for agent in self._speaking_order
+            }
 
         moderator_question = ""
         if self._last_moderator_parsed and '下一问' in self._last_moderator_parsed:
