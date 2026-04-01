@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List
 
 
-REQUIRED_PROMPTS = ["opening", "guest", "guest_quick", "moderator", "compare"]
+REQUIRED_PROMPTS = ["opening", "guest", "guest_quick", "moderator", "compare", "solo_roundtable"]
 
 
 class PromptLoader:

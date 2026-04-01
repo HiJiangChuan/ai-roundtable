@@ -42,25 +42,19 @@ def parse_action_assignments(action_text: str) -> Dict[str, Dict[str, str]]:
     """
     Parse action assignment text into per-agent action dicts.
     Returns {agent: {type: str, instruction: str}}
+    Supports any agent name (not hardcoded to Claude/Codex/Gemini).
     """
     assignments = {}
-    lines = action_text.strip().split('\n')
-
-    for line in lines:
+    for line in action_text.strip().split('\n'):
         line = line.strip()
         if not line:
             continue
-        # Pattern: "Claude：反驳 - 说明" or "Claude: 反驳 - 说明"
-        match = re.match(r'^(Claude|Codex|Gemini)[：:]\s*([^-–—]+?)\s*[-–—]\s*(.+)$', line, re.IGNORECASE)
+        match = re.match(r'^(\w+)[：:]\s*([^-–—]+?)\s*[-–—]\s*(.+)$', line)
         if match:
-            agent_name = match.group(1).lower()
-            action_type = match.group(2).strip()
-            instruction = match.group(3).strip()
-            assignments[agent_name] = {
-                'type': action_type,
-                'instruction': instruction
+            assignments[match.group(1).lower()] = {
+                'type': match.group(2).strip(),
+                'instruction': match.group(3).strip(),
             }
-
     return assignments
 
 
@@ -71,7 +65,8 @@ class Orchestrator:
     STATE_RUNNING = "running"
     STATE_ENDED = "ended"
 
-    def __init__(self, project_root: Path, config: Dict[str, Any], history=None):
+    def __init__(self, project_root: Path, config: Dict[str, Any],
+                 history=None, active_agents: Optional[List[str]] = None):
         self.project_root = Path(project_root)
         self.config = config
 
@@ -81,14 +76,21 @@ class Orchestrator:
         self._topic: str = ""
         self._last_moderator_parsed: Optional[Dict[str, str]] = None
 
-        # Moderator rotation (v2.0: read from deep config)
-        self._moderator_rotation: List[str] = config.get('deep', {}).get(
-            'moderator_rotation', ['gemini', 'codex', 'claude']
-        )
-        # Speaking order for rounds >= 2
-        self._speaking_order: List[str] = config.get('deep', {}).get(
-            'speaking_order', ['claude', 'codex', 'gemini']
-        )
+        # Active agents — derived from config order, filtered by enabled flag
+        if active_agents is not None:
+            self._active_agents = active_agents
+        else:
+            self._active_agents = [
+                k for k, v in config.get('ais', {}).items()
+                if v.get('enabled', True)
+            ]
+
+        # Solo mode: 1 agent plays all roles (李继刚 圆桌 style)
+        self._solo = len(self._active_agents) == 1
+
+        # Moderator rotation and speaking order derived from active agents
+        self._moderator_rotation: List[str] = self._active_agents
+        self._speaking_order: List[str] = self._active_agents
 
         # Components
         prompts_dir = self.project_root / 'prompts'
@@ -116,16 +118,12 @@ class Orchestrator:
 
     @property
     def current_moderator(self) -> str:
-        """Get the moderator for the current round (1-indexed rotation)."""
         if self._round_num == 0:
             return self._moderator_rotation[0]
-        idx = (self._round_num - 1) % len(self._moderator_rotation)
-        return self._moderator_rotation[idx]
+        return self._get_moderator_for_round(self._round_num)
 
     def _get_moderator_for_round(self, round_num: int) -> str:
-        """Get moderator for a specific round number."""
-        idx = (round_num - 1) % len(self._moderator_rotation)
-        return self._moderator_rotation[idx]
+        return self._moderator_rotation[round_num % len(self._moderator_rotation)]
 
     async def start_session(self, topic: str, cb: Callable) -> None:
         """Run the opening (round 0). After completion, state becomes 'waiting'."""
@@ -138,44 +136,58 @@ class Orchestrator:
         self.context_manager.set_topic(topic)
         self._session_id = self.history.new_session(topic)
 
-        moderator = self._moderator_rotation[0]  # Gemini opens
+        moderator = self._moderator_rotation[0]
         cb("status", message=f"开场中，{moderator} 主持...", state=self._state)
         cb("agent_start", agent=moderator, round=0, role="moderator")
 
         try:
-            prompt = self.prompt_loader.render('opening', {
-                'moderator_name': moderator.capitalize(),
-                'topic': topic
-            })
+            if self._solo:
+                prompt = self.prompt_loader.render('solo_roundtable', {
+                    'topic': topic,
+                })
+            else:
+                guests = [a for a in self._active_agents if a != moderator] + [moderator]
+                guests_list = "、".join(a.capitalize() for a in self._active_agents)
+                guests_action_format = "\n".join(
+                    f"{a.capitalize()}：陈述立场 - 从你的视角阐明对此议题的核心立场"
+                    for a in self._active_agents
+                )
+                prompt = self.prompt_loader.render('opening', {
+                    'moderator_name': moderator.capitalize(),
+                    'topic': topic,
+                    'guests_list': guests_list,
+                    'guests_action_format': guests_action_format,
+                })
         except FileNotFoundError as e:
             cb("error", message=str(e))
             self._state = self.STATE_IDLE
             return
 
         raw = await self.cli_caller.call(moderator, prompt)
-        parsed = parse_moderator_output(raw)
 
-        # Retry once if format doesn't match
-        if parsed is None:
-            cb("status", message="开场格式不符，重试...", state=self._state)
-            raw = await self.cli_caller.call(moderator, prompt)
-            parsed = parse_moderator_output(raw)
-
-        cb("agent_response", agent=moderator, round=0, content=raw, role="moderator")
-
-        if parsed:
-            self._last_moderator_parsed = parsed
-            cb("moderator_output", moderator=moderator, round=0, parsed=parsed, raw=raw)
+        if self._solo:
+            cb("agent_response", agent=moderator, round=0, content=raw, role="moderator")
+            self._last_moderator_parsed = {'矛盾点': '议题初始', '下一问': topic,
+                                           '行动分配': '', '本轮摘要': f'议题：{topic}'}
         else:
-            # Use a default structure if parsing still fails
-            self._last_moderator_parsed = {
-                '矛盾点': '议题初始',
-                '下一问': topic,
-                '行动分配': '',
-                '本轮摘要': f'议题：{topic}'
-            }
-            cb("moderator_output", moderator=moderator, round=0,
-               parsed=self._last_moderator_parsed, raw=raw)
+            parsed = parse_moderator_output(raw)
+            if parsed is None:
+                cb("status", message="开场格式不符，重试...", state=self._state)
+                raw = await self.cli_caller.call(moderator, prompt)
+                parsed = parse_moderator_output(raw)
+
+            cb("agent_response", agent=moderator, round=0, content=raw, role="moderator")
+
+            if parsed:
+                self._last_moderator_parsed = parsed
+                cb("moderator_output", moderator=moderator, round=0, parsed=parsed, raw=raw)
+            else:
+                self._last_moderator_parsed = {
+                    '矛盾点': '议题初始', '下一问': topic,
+                    '行动分配': '', '本轮摘要': f'议题：{topic}'
+                }
+                cb("moderator_output", moderator=moderator, round=0,
+                   parsed=self._last_moderator_parsed, raw=raw)
 
         self._state = self.STATE_WAITING
         cb("status", message=f"Session {self._session_id} · 开场完毕 · 输入「可」开始第1轮",
@@ -271,41 +283,40 @@ class Orchestrator:
 
         cb("status", message=f"第{round_num}轮开始，{moderator} 主持...", state=self._state)
 
-        # Get action assignments from last moderator output
-        action_assignments = {}
-        if self._last_moderator_parsed and '行动分配' in self._last_moderator_parsed:
-            action_assignments = parse_action_assignments(
-                self._last_moderator_parsed['行动分配']
-            )
-        if not action_assignments:
-            action_assignments = {
-                agent: {'type': '陈述立场', 'instruction': '阐明你的核心立场'}
-                for agent in self._speaking_order
-            }
-
-        moderator_question = ""
-        if self._last_moderator_parsed and '下一问' in self._last_moderator_parsed:
-            moderator_question = self._last_moderator_parsed['下一问']
-
+        moderator_question = (self._last_moderator_parsed or {}).get('下一问', '')
         speeches: Dict[str, str] = {}
 
-        if round_num == 1:
-            # Round 1: all agents speak in parallel, cannot see each other
-            await self._run_parallel_speeches(
-                round_num, moderator, moderator_question,
-                action_assignments, speeches, cb
-            )
+        if self._solo:
+            # Solo: one AI plays all roles in a single call
+            await self._run_solo_round(round_num, moderator, moderator_question, speeches, cb)
+            moderator_raw, moderator_parsed = "", None
         else:
-            # Round N>=2: sequential speaking, each sees previous
-            await self._run_sequential_speeches(
-                round_num, moderator, moderator_question,
-                action_assignments, speeches, cb
-            )
+            # Get action assignments from last moderator output
+            action_assignments = {}
+            if self._last_moderator_parsed and '行动分配' in self._last_moderator_parsed:
+                action_assignments = parse_action_assignments(
+                    self._last_moderator_parsed['行动分配']
+                )
+            if not action_assignments:
+                action_assignments = {
+                    agent: {'type': '陈述立场', 'instruction': '阐明你的核心立场'}
+                    for agent in self._speaking_order
+                }
 
-        # Moderator summary
-        moderator_raw, moderator_parsed = await self._run_moderator(
-            round_num, moderator, speeches, cb
-        )
+            if round_num == 1:
+                await self._run_parallel_speeches(
+                    round_num, moderator, moderator_question,
+                    action_assignments, speeches, cb
+                )
+            else:
+                await self._run_sequential_speeches(
+                    round_num, moderator, moderator_question,
+                    action_assignments, speeches, cb
+                )
+
+            moderator_raw, moderator_parsed = await self._run_moderator(
+                round_num, moderator, speeches, cb
+            )
 
         # Build round data
         round_data = {
@@ -406,6 +417,23 @@ class Orchestrator:
             speeches[agent] = response
             cb("agent_response", agent=agent, round=round_num, content=response, role="guest")
 
+    async def _run_solo_round(
+        self, round_num: int, agent: str, moderator_question: str,
+        speeches: Dict[str, str], cb: Callable
+    ) -> None:
+        """Solo mode: one AI plays all roles and produces the full round as one response."""
+        cb("agent_start", agent=agent, round=round_num, role="guest")
+        context = self.context_manager.build_context()
+        prompt = self.prompt_loader.render('solo_roundtable', {
+            'topic': self._topic,
+            'round_num': str(round_num),
+            'moderator_question': moderator_question,
+            'context': context,
+        })
+        response = await self.cli_caller.call(agent, prompt)
+        speeches[agent] = response
+        cb("agent_response", agent=agent, round=round_num, content=response, role="guest")
+
     async def _run_moderator(
         self, round_num: int, moderator: str,
         speeches: Dict[str, str], cb: Callable
@@ -420,12 +448,18 @@ class Orchestrator:
                 speech_lines.append(f"[{agent.upper()}]\n{speeches[agent]}")
         round_speeches = '\n\n'.join(speech_lines)
 
+        guests_list = "、".join(a.capitalize() for a in self._active_agents)
+        guests_action_format = "\n".join(
+            f"{a.capitalize()}：{{行动类型}} - {{具体说明}}" for a in self._active_agents
+        )
         context = self.context_manager.build_context()
         prompt = self.prompt_loader.render('moderator', {
             'moderator_name': moderator.capitalize(),
             'context': context,
             'round_num': str(round_num),
-            'round_speeches': round_speeches
+            'round_speeches': round_speeches,
+            'guests_list': guests_list,
+            'guests_action_format': guests_action_format,
         })
 
         raw = await self.cli_caller.call(moderator, prompt)
@@ -479,11 +513,12 @@ class Orchestrator:
 
         cb("status", message=f"深入当前节点，轮{round_num}...", state=self._state)
 
-        # Override action assignments to focus on 反驳/追问
+        # Override action assignments to focus on 反驳/追问 — cycle through types
+        deep_types = ['反驳', '追问', '挑战前提']
         action_assignments = {
-            'claude': {'type': '反驳', 'instruction': '针对矛盾点提出直接反驳'},
-            'codex': {'type': '追问', 'instruction': '围绕矛盾点提出深层追问'},
-            'gemini': {'type': '挑战前提', 'instruction': '质疑当前讨论的基本假设'}
+            agent: {'type': deep_types[i % len(deep_types)],
+                    'instruction': '围绕矛盾点深入探讨'}
+            for i, agent in enumerate(self._speaking_order)
         }
 
         moderator_question = self._last_moderator_parsed.get('矛盾点', '请深入当前矛盾点')
@@ -505,7 +540,8 @@ class Orchestrator:
         """Handle @agent question format."""
         match = re.match(r'^@(\w+)\s+(.*)', user_input, re.DOTALL)
         if not match:
-            cb("status", message="格式错误，请用 @claude/gemini/codex 内容", state=self._state)
+            agents_hint = "/".join(self._active_agents)
+            cb("status", message=f"格式错误，请用 @{agents_hint} 内容", state=self._state)
             return
 
         agent_name = match.group(1).lower()

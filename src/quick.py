@@ -5,13 +5,16 @@ from typing import Dict, List, Callable, Any, Optional
 
 class QuickMode:
     def __init__(self, config: dict, cli_caller, prompt_loader,
-                 history=None, quick_file: Optional[Path] = None):
+                 history=None, quick_file: Optional[Path] = None,
+                 active_agents: Optional[List[str]] = None):
         self.config = config
         self.cli_caller = cli_caller
         self.prompts = prompt_loader
         self.history = history
-        self.quick_file = quick_file          # file this session writes to
-        self.agents = ["claude", "gemini", "codex"]
+        self.quick_file = quick_file
+        self.agents = active_agents if active_agents is not None else [
+            k for k, v in config.get('ais', {}).items() if v.get('enabled', True)
+        ]
         self.history_local: List[Dict[str, Any]] = []
 
     def _build_context_history(self) -> str:

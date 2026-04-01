@@ -19,8 +19,7 @@ class ContextManager:
         self._quick_context: Optional[Dict[str, Any]] = None
 
     def set_topic(self, topic: str) -> None:
-        """Set the topic summary (≤50 chars ideally)."""
-        self.topic_summary = topic[:50] if len(topic) > 50 else topic
+        self.topic_summary = topic[:100] if len(topic) > 100 else topic
 
     def set_quick_context(self, quick_entry: dict) -> None:
         """将快问的最后一次问答作为初始上下文"""

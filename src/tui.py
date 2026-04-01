@@ -202,9 +202,15 @@ class HistoryModal(ModalScreen):
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-AGENTS     = ["claude", "gemini", "codex"]
-AGENT_ICON = {"claude": "🔵", "gemini": "🟢", "codex": "🟡"}
 MAX_TABS   = 4
+
+
+def _active_agents(config: dict) -> List[str]:
+    return [k for k, v in config.get('ais', {}).items() if v.get('enabled', True)]
+
+
+def _agent_icon(config: dict, agent: str) -> str:
+    return config.get('ais', {}).get(agent, {}).get('icon', '⚪')
 
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -457,6 +463,7 @@ class RoundtableApp(App):
         self.project_root = project_root
         self.config       = config
 
+        self._agents        = _active_agents(config)
         prompts_dir         = project_root / "prompts"
         self._prompt_loader = PromptLoader(prompts_dir)
         timeout             = config.get("deep", {}).get("timeout_seconds", 60)
@@ -482,9 +489,10 @@ class RoundtableApp(App):
         yield Tabs(id="session-tabs")
 
         with Vertical(id="guest-panels"):
-            for agent in AGENTS:
+            for agent in self._agents:
+                icon = _agent_icon(self.config, agent)
                 with Vertical(id=f"wrap-{agent}", classes=f"agent-wrap {agent}"):
-                    yield Static(f"{AGENT_ICON[agent]} {agent.upper()}",
+                    yield Static(f"{icon} {agent.upper()}",
                                  id=f"title-{agent}", classes="agent-title")
                     yield RichLog(id=f"log-{agent}", classes="guest-log",
                                   wrap=True, highlight=False, markup=True)
@@ -505,7 +513,7 @@ class RoundtableApp(App):
         self._cb_queue = asyncio.Queue()
         self.set_interval(0.05, self._process_cb_queue)
 
-        for agent in AGENTS:
+        for agent in self._agents:
             self.query_one(f"#log-{agent}", RichLog).can_focus = True
         self.query_one("#moderator-log", RichLog).can_focus = True
 
@@ -529,10 +537,12 @@ class RoundtableApp(App):
         # quick_file is None for fresh tabs — created lazily on first message
         qm = QuickMode(self.config, self._cli_caller, self._prompt_loader,
                        history=self._history,
-                       quick_file=quick_file) if mode == "quick" else None
+                       quick_file=quick_file,
+                       active_agents=self._agents) if mode == "quick" else None
 
         orch = Orchestrator(self.project_root, self.config,
-                            history=self._history) if mode == "deep" else None
+                            history=self._history,
+                            active_agents=self._agents) if mode == "deep" else None
 
         session = TabSession(
             tab_id    = tab_id,
@@ -566,7 +576,7 @@ class RoundtableApp(App):
         session = self._sessions[tab_id]
 
         # Clear panels
-        for agent in AGENTS:
+        for agent in self._agents:
             self._log(agent).clear()
             self._set_agent_title(agent)
         self._mod_log().clear()
@@ -680,7 +690,7 @@ class RoundtableApp(App):
 
     def _set_agent_title(self, agent: str, suffix: str = "") -> None:
         title = self.query_one(f"#title-{agent}", Static)
-        base  = f"{AGENT_ICON[agent]} {agent.upper()}"
+        base  = f"{_agent_icon(self.config, agent)} {agent.upper()}"
         title.update(f"{base} {suffix}".strip())
 
     def _apply_mode_ui(self) -> None:
@@ -788,7 +798,7 @@ class RoundtableApp(App):
                 return
 
             # Clear stream preview
-            if not _replay and agent in AGENTS:
+            if not _replay and agent in self._agents:
                 w = self.query_one(f"#stream-{agent}", Static)
                 w.remove_class("--active")
                 w.update("")
@@ -885,7 +895,7 @@ class RoundtableApp(App):
             if _replay:
                 return
             summary = kwargs.get("summary", "")
-            for agent in AGENTS:
+            for agent in self._agents:
                 log = self._log(agent)
                 log.write("[bold yellow]── 总结 ──[/bold yellow]")
                 log.write(Markdown(summary))
@@ -1054,7 +1064,7 @@ class RoundtableApp(App):
             return
 
         agent = focused.id.replace("log-", "")
-        if agent not in AGENTS:
+        if agent not in self._agents:
             self.notify("请点击 AI 回答面板", severity="warning", timeout=2)
             return
 
