@@ -43,6 +43,11 @@ class QuickMode:
         await asyncio.gather(*[ask(ag) for ag in self.agents])
         self.history_local.append({"question": question, "responses": responses})
 
+        # Lazily create the MD file on first message
+        if self.history and self.quick_file is None:
+            _, self.quick_file = self.history.new_quick_session()
+            cb("quick_file_ready", quick_file=self.quick_file)
+
         if self.history and self.quick_file:
             try:
                 self.history.append_quick_entry(question, responses, path=self.quick_file)

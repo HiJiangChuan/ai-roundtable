@@ -503,10 +503,7 @@ class RoundtableApp(App):
         self._tab_counter += 1
         tab_id = f"tab-{self._tab_counter}"
 
-        # Create file for quick sessions
-        if mode == "quick" and quick_file is None:
-            _, quick_file = self._history.new_quick_session()
-
+        # quick_file is None for fresh tabs — created lazily on first message
         qm = QuickMode(self.config, self._cli_caller, self._prompt_loader,
                        history=self._history,
                        quick_file=quick_file) if mode == "quick" else None
@@ -804,6 +801,14 @@ class RoundtableApp(App):
             log.write(Markdown(content))
             log.write("")
 
+        elif event_type == "quick_file_ready":
+            if not _replay:
+                quick_file = kwargs.get("quick_file")
+                for session in self._sessions.values():
+                    if session.quick_mode and session.quick_mode.quick_file == quick_file:
+                        session.quick_file = quick_file
+                        break
+
         elif event_type == "session_title":
             if not _replay:
                 title = kwargs.get("title", "")
@@ -966,9 +971,25 @@ class RoundtableApp(App):
         fpath  = result.get('file')
 
         if s_type == 'quick' and fpath:
-            entries = self._history.load_last_entries(Path(fpath), n=3)
-            self._create_tab(mode="quick", title=title,
-                             preload_entries=entries, quick_file=Path(fpath))
+            entries   = self._history.load_last_entries(Path(fpath), n=3)
+            cur       = self._sessions.get(self._active_tab)
+            cur_empty = cur and cur.mode == "quick" and not cur.log_entries
+
+            if cur_empty:
+                # Reuse current empty tab — no new tab needed
+                cur.title      = title[:15]
+                cur.quick_file = Path(fpath)
+                if cur.quick_mode:
+                    cur.quick_mode.quick_file = Path(fpath)
+                    for entry in entries:
+                        cur.quick_mode.history_local.append(entry)
+                        cur.log_entries.append(("history_entry", entry))
+                self._renumber_tabs()
+                for entry in entries:
+                    self._replay(("history_entry", entry))
+            else:
+                self._create_tab(mode="quick", title=title,
+                                 preload_entries=entries, quick_file=Path(fpath))
         elif s_type == 'deep':
             self.notify(f"深度讨论仅供查阅：{fpath}", timeout=4)
 
