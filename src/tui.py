@@ -1094,17 +1094,26 @@ class RoundtableApp(App):
 
         self._enter_clean_view(agent)
 
+    def _set_mouse_capture(self, enabled: bool) -> None:
+        """Toggle terminal mouse tracking so clean view allows native text selection."""
+        seq = "\x1b[?1003h\x1b[?1006h" if enabled else "\x1b[?1003l\x1b[?1006l"
+        try:
+            self._driver._file.write(seq)
+            self._driver._file.flush()
+        except Exception:
+            pass
+
     def _enter_clean_view(self, agent: str) -> None:
         self._clean_view_agent = agent
-        wrap = self.query_one(f"#wrap-{agent}")
-        wrap.add_class("--focus-panel")
+        self.query_one(f"#wrap-{agent}").add_class("--focus-panel")
         self.screen.add_class("--clean-view")
         self.query_one(f"#log-{agent}", RichLog).focus()
+        self._set_mouse_capture(False)
 
     def _exit_clean_view(self) -> None:
+        self._set_mouse_capture(True)
         if self._clean_view_agent:
-            wrap = self.query_one(f"#wrap-{self._clean_view_agent}")
-            wrap.remove_class("--focus-panel")
+            self.query_one(f"#wrap-{self._clean_view_agent}").remove_class("--focus-panel")
             self._clean_view_agent = ""
         self.screen.remove_class("--clean-view")
         self.query_one("#main-input", RoundtableInput).focus()
