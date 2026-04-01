@@ -112,7 +112,7 @@ class HistoryModal(ModalScreen):
 
     def __init__(self, sessions: list):
         super().__init__()
-        self._quick = [s for s in sessions if s['type'] == 'rapid-fire']
+        self._quick = [s for s in sessions if s['type'] == 'panel']
         self._deep  = [s for s in sessions if s['type'] == 'deep-dive']
         # col: 0=quick, 1=deep; row: index within column
         self._col = 0 if self._quick else (1 if self._deep else 0)
@@ -128,7 +128,7 @@ class HistoryModal(ModalScreen):
             with Horizontal(id="modal-columns"):
                 with Vertical(classes="col-panel col-panel-left"):
                     hdr_cls = "col-header --active" if self._col == 0 else "col-header"
-                    yield Static("⚡ Rapid Fire", id="col-hdr-0", classes=hdr_cls)
+                    yield Static("⚡ Panel", id="col-hdr-0", classes=hdr_cls)
                     if self._quick:
                         for i, s in enumerate(self._quick[:15]):
                             hi = (self._col == 0 and i == 0)
@@ -398,18 +398,21 @@ Tab:hover {
 }
 
 /* ── Clean view mode ─────────────────────────────────────── */
-Screen.--clean-view Header        { display: none; }
-Screen.--clean-view Footer        { display: none; }
-Screen.--clean-view Tabs          { display: none; }
-Screen.--clean-view #input-row    { display: none; }
+Screen.--clean-view Header          { display: none; }
+Screen.--clean-view Footer          { display: none; }
+Screen.--clean-view Tabs            { display: none; }
+Screen.--clean-view #input-row      { display: none; }
 Screen.--clean-view #moderator-wrap { display: none; }
-Screen.--clean-view .agent-wrap   { display: none; }
+Screen.--clean-view #guest-panels   { height: 1fr; }
+Screen.--clean-view .agent-wrap     { display: none; }
 Screen.--clean-view .agent-wrap.--focus-panel {
     display: block;
     height: 1fr;
+    width: 1fr;
 }
-Screen.--clean-view .agent-wrap.--focus-panel .agent-title { display: none; }
-Screen.--clean-view .agent-wrap.--focus-panel .guest-log   { height: 1fr; }
+Screen.--clean-view .agent-wrap.--focus-panel .agent-title  { display: none; }
+Screen.--clean-view .agent-wrap.--focus-panel .stream-preview { display: none; }
+Screen.--clean-view .agent-wrap.--focus-panel .guest-log    { height: 1fr; }
 """
 
 
@@ -718,7 +721,7 @@ class RoundtableApp(App):
 
         if self._mode == "quick":
             mod_wrap.display = False
-            label.update(f"[dim]Rapid Fire · {tab_info} ›[/dim]")
+            label.update(f"[dim]Panel · {tab_info} ›[/dim]")
             inp.placeholder = "输入问题…  /compare 互评"
             self.bind("ctrl+t", "toggle_mode", description="升级 Deep Dive")
         else:
@@ -727,7 +730,7 @@ class RoundtableApp(App):
             rnd = session.orchestrator.round_num if session and session.orchestrator else 0
             label.update(f"[dim]Deep Dive 轮{rnd + 1} · {tab_info} ›[/dim]")
             inp.placeholder = "可 · 止 · 深入此节 · @claude …"
-            self.bind("ctrl+t", "toggle_mode", description="切换至 Rapid Fire")
+            self.bind("ctrl+t", "toggle_mode", description="切换至 Panel")
 
         inp.disabled = False
 
@@ -824,7 +827,7 @@ class RoundtableApp(App):
             self._set_agent_title(agent)
 
             if role == "quick":
-                divider = "[dim]── Rapid Fire ──[/dim]"
+                divider = "[dim]── Panel ──[/dim]"
             elif role == "compare":
                 divider = "[dim]── 互评 ──[/dim]"
             else:
@@ -1012,7 +1015,7 @@ class RoundtableApp(App):
     def action_compare(self) -> None:
         session = self._sessions.get(self._active_tab)
         if not session or session.mode != "quick":
-            self.notify("互评仅在 Rapid Fire 模式下可用", severity="warning", timeout=3)
+            self.notify("互评仅在 Panel 模式下可用", severity="warning", timeout=3)
             return
         if not session.quick_mode or not session.quick_mode.history_local:
             self.notify("请先提问，再发起互评", severity="warning", timeout=3)
@@ -1036,7 +1039,7 @@ class RoundtableApp(App):
         title  = result.get('title', '历史')
         fpath  = result.get('file')
 
-        if s_type == 'rapid-fire' and fpath:
+        if s_type == 'panel' and fpath:
             entries   = self._history.load_last_entries(Path(fpath), n=3)
             cur       = self._sessions.get(self._active_tab)
             cur_empty = cur and cur.mode == "quick" and not cur.log_entries
