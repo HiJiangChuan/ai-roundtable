@@ -444,6 +444,7 @@ class RoundtableApp(App):
 
     BINDINGS = [
         Binding("escape", "quit",            "退出"),
+        Binding("/",      "focus_input",    show=False),
         Binding("ctrl+r", "compare",        "互评"),
         Binding("ctrl+y", "copy_panel",     "复制面板"),
         Binding("ctrl+n", "new_tab",        "新建"),
@@ -1101,6 +1102,9 @@ class RoundtableApp(App):
             self.query_one("#main-input", RoundtableInput).focus()
         else:
             self.notify("复制失败，请检查 pyperclip 安装", severity="error", timeout=3)
+
+    def action_focus_input(self) -> None:
+        self.query_one("#main-input", RoundtableInput).focus()
 
     def action_quit(self) -> None:
         self.exit()
