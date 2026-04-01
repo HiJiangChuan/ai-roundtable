@@ -200,11 +200,9 @@ class CliCaller:
             return "", False
 
         if agent == 'gemini':
-            t = data.get('type', '')
-            if t == 'message':
-                return data.get('text', ''), False
-            if t == 'result':
-                return data.get('text', ''), True
+            # {"type":"message","role":"assistant","content":"...","delta":true}
+            if data.get('type') == 'message' and data.get('role') == 'assistant':
+                return data.get('content', ''), False
 
         elif agent == 'claude':
             t = data.get('type', '')
@@ -218,13 +216,10 @@ class CliCaller:
                 return data.get('result', ''), True
 
         elif agent == 'codex':
-            t = data.get('type', '')
-            if t == 'message' and data.get('role') == 'assistant':
-                c = data.get('content', '')
-                text = c if isinstance(c, str) else ''.join(
-                    b.get('text', '') for b in c
-                    if isinstance(b, dict) and b.get('type') == 'text'
-                )
-                return text, True   # codex emits full message at end
+            # {"type":"item.completed","item":{"type":"agent_message","text":"..."}}
+            if data.get('type') == 'item.completed':
+                item = data.get('item', {})
+                if item.get('type') == 'agent_message':
+                    return item.get('text', ''), True
 
         return "", False
