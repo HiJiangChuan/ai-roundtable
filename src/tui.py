@@ -1060,7 +1060,7 @@ class RoundtableApp(App):
         self.notify(label, timeout=1)
 
     def action_copy_panel(self) -> None:
-        import os, subprocess, tempfile
+        import os
         focused = self.screen.focused
         if not isinstance(focused, RichLog) or not focused.id:
             self.notify("请先点击某个 AI 面板", severity="warning", timeout=2)
@@ -1088,15 +1088,23 @@ class RoundtableApp(App):
             return
 
         text = ("\n\n" + "─" * 60 + "\n\n").join(parts)
-        tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt',
-                                          delete=False, encoding='utf-8')
-        tmp.write(text)
-        tmp.close()
-        try:
-            with self.suspend():
-                subprocess.run(['less', '-R', '-S', tmp.name])
-        finally:
-            os.unlink(tmp.name)
+
+        def _show():
+            import sys, tty, termios
+            os.system('clear')
+            print(text)
+            print("\n" + "─" * 40)
+            print("按任意键返回…")
+            fd = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+            try:
+                tty.setraw(fd)
+                sys.stdin.read(1)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+        with self.suspend():
+            _show()
 
     def action_focus_input(self) -> None:
         self.query_one("#main-input", RoundtableInput).focus()
