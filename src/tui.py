@@ -398,18 +398,21 @@ Tab:hover {
 }
 
 /* ── Clean view mode ─────────────────────────────────────── */
-Screen.--clean-view Header        { display: none; }
-Screen.--clean-view Footer        { display: none; }
-Screen.--clean-view Tabs          { display: none; }
-Screen.--clean-view #input-row    { display: none; }
+Screen.--clean-view Header          { display: none; }
+Screen.--clean-view Footer          { display: none; }
+Screen.--clean-view Tabs            { display: none; }
+Screen.--clean-view #input-row      { display: none; }
 Screen.--clean-view #moderator-wrap { display: none; }
-Screen.--clean-view .agent-wrap   { display: none; }
+Screen.--clean-view #guest-panels   { height: 1fr; }
+Screen.--clean-view .agent-wrap     { display: none; }
 Screen.--clean-view .agent-wrap.--focus-panel {
     display: block;
     height: 1fr;
+    width: 1fr;
 }
-Screen.--clean-view .agent-wrap.--focus-panel .agent-title { display: none; }
-Screen.--clean-view .agent-wrap.--focus-panel .guest-log   { height: 1fr; }
+Screen.--clean-view .agent-wrap.--focus-panel .agent-title    { display: none; }
+Screen.--clean-view .agent-wrap.--focus-panel .stream-preview { display: none; }
+Screen.--clean-view .agent-wrap.--focus-panel .guest-log      { height: 1fr; }
 """
 
 
