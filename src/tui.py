@@ -1038,16 +1038,30 @@ class RoundtableApp(App):
 
     def action_copy_panel(self) -> None:
         focused = self.screen.focused
-        if not isinstance(focused, RichLog):
-            self.notify("点击某个面板后再按 Ctrl+Y", severity="warning", timeout=2)
+        if not isinstance(focused, RichLog) or not focused.id:
+            self.notify("请先点击某个 AI 面板", severity="warning", timeout=2)
             return
-        text = "\n".join(
-            "".join(seg.text for seg in strip)
-            for strip in focused.lines
-        ).strip()
+
+        agent = focused.id.replace("log-", "")
+        if agent not in AGENTS:
+            self.notify("请点击 AI 回答面板", severity="warning", timeout=2)
+            return
+
+        session = self._sessions.get(self._active_tab)
+        text = ""
+        if session and session.mode == "quick" and session.quick_mode:
+            history = session.quick_mode.history_local
+            if history:
+                text = history[-1].get("responses", {}).get(agent, "")
+        elif session and session.mode == "deep" and session.orchestrator:
+            rounds = getattr(session.orchestrator, '_rounds', [])
+            if rounds:
+                text = rounds[-1].get("speeches", {}).get(agent, "")
+
         if not text:
-            self.notify("面板内容为空", timeout=2)
+            self.notify("暂无可复制内容", timeout=2)
             return
+
         copied = False
         try:
             import pyperclip
@@ -1062,7 +1076,7 @@ class RoundtableApp(App):
             except Exception:
                 pass
         if copied:
-            self.notify(f"已复制 {len(text)} 个字符", timeout=2)
+            self.notify(f"已复制 {agent.upper()} 最后回答（{len(text)} 字）", timeout=2)
             self.query_one("#main-input", RoundtableInput).focus()
         else:
             self.notify("复制失败，请检查 pyperclip 安装", severity="error", timeout=3)
