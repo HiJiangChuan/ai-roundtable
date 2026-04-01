@@ -1107,12 +1107,18 @@ class RoundtableApp(App):
         self._clean_view_agent = agent
         self.query_one(f"#wrap-{agent}").add_class("--focus-panel")
         self.screen.add_class("--clean-view")
-        self.query_one(f"#log-{agent}", RichLog).focus()
+        log = self.query_one(f"#log-{agent}", RichLog)
+        log.styles.padding = 0
+        log.styles.margin = 0
+        log.focus()
         self._set_mouse_capture(False)
 
     def _exit_clean_view(self) -> None:
         self._set_mouse_capture(True)
         if self._clean_view_agent:
+            log = self.query_one(f"#log-{self._clean_view_agent}", RichLog)
+            log.styles.padding = (0, 1)
+            log.styles.margin = 0
             self.query_one(f"#wrap-{self._clean_view_agent}").remove_class("--focus-panel")
             self._clean_view_agent = ""
         self.screen.remove_class("--clean-view")
