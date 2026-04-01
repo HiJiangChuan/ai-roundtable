@@ -413,7 +413,7 @@ Screen.--clean-view .agent-wrap.--focus-panel {
 }
 Screen.--clean-view .agent-wrap.--focus-panel .agent-title    { display: none; }
 Screen.--clean-view .agent-wrap.--focus-panel .stream-preview { display: none; }
-Screen.--clean-view .agent-wrap.--focus-panel .guest-log      { height: 1fr; padding: 0; }
+Screen.--clean-view .agent-wrap.--focus-panel .guest-log      { height: 1fr; }
 """
 
 
@@ -1107,21 +1107,33 @@ class RoundtableApp(App):
         self._clean_view_agent = agent
         self.query_one(f"#wrap-{agent}").add_class("--focus-panel")
         self.screen.add_class("--clean-view")
+
+        # Rewrite log as plain strings — no Markdown() wrapper means no Rich padding
         log = self.query_one(f"#log-{agent}", RichLog)
-        log.styles.padding = 0
-        log.styles.margin = 0
+        log.clear()
+        session = self._sessions.get(self._active_tab)
+        if session and session.quick_mode:
+            for entry in session.quick_mode.history_local:
+                r = entry.get('responses', {}).get(agent, '')
+                if r:
+                    log.write(r)
+        elif session and session.orchestrator:
+            for rnd in session.orchestrator.context_manager.full_rounds:
+                r = rnd.get('speeches', {}).get(agent, '')
+                if r:
+                    log.write(r)
+
         log.focus()
         self._set_mouse_capture(False)
 
     def _exit_clean_view(self) -> None:
         self._set_mouse_capture(True)
-        if self._clean_view_agent:
-            log = self.query_one(f"#log-{self._clean_view_agent}", RichLog)
-            log.styles.padding = (0, 1)
-            log.styles.margin = 0
-            self.query_one(f"#wrap-{self._clean_view_agent}").remove_class("--focus-panel")
-            self._clean_view_agent = ""
+        agent = self._clean_view_agent
+        self._clean_view_agent = ""
+        if agent:
+            self.query_one(f"#wrap-{agent}").remove_class("--focus-panel")
         self.screen.remove_class("--clean-view")
+        self._switch_to_tab(self._active_tab)  # full replay restores Markdown rendering
         self.query_one("#main-input", RoundtableInput).focus()
 
     def action_focus_input(self) -> None:
