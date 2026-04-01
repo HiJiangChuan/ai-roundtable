@@ -396,6 +396,20 @@ Tab:hover {
     color: #1c2128;
     padding: 0 0 0 1;
 }
+
+/* ── Clean view mode ─────────────────────────────────────── */
+Screen.--clean-view Header        { display: none; }
+Screen.--clean-view Footer        { display: none; }
+Screen.--clean-view Tabs          { display: none; }
+Screen.--clean-view #input-row    { display: none; }
+Screen.--clean-view #moderator-wrap { display: none; }
+Screen.--clean-view .agent-wrap   { display: none; }
+Screen.--clean-view .agent-wrap.--focus-panel {
+    display: block;
+    height: 1fr;
+}
+Screen.--clean-view .agent-wrap.--focus-panel .agent-title { display: none; }
+Screen.--clean-view .agent-wrap.--focus-panel .guest-log   { height: 1fr; }
 """
 
 
@@ -446,7 +460,7 @@ class RoundtableApp(App):
         Binding("escape", "quit",            "退出"),
         Binding("/",      "focus_input",    show=False),
         Binding("ctrl+r", "compare",        "互评"),
-        Binding("ctrl+y", "copy_panel",     "复制面板"),
+        Binding("ctrl+y", "copy_panel",     "专注面板"),
         Binding("ctrl+n", "new_tab",        "新建"),
         Binding("ctrl+w", "close_tab",      "关闭"),
         Binding("ctrl+o", "history",        "历史"),
@@ -482,6 +496,7 @@ class RoundtableApp(App):
         self._image_buffers: dict = {}
         self._image_count:   int = 0
         self._stream_buffers: Dict[str, str] = {}
+        self._clean_view_agent: str = ""
 
     # ── layout ────────────────────────────────────────────────────────────────
 
@@ -1059,55 +1074,45 @@ class RoundtableApp(App):
         self.notify(label, timeout=1)
 
     def action_copy_panel(self) -> None:
+        # If already in clean view, exit it
+        if self._clean_view_agent:
+            self._exit_clean_view()
+            return
+
         focused = self.screen.focused
         if not isinstance(focused, RichLog) or not focused.id:
             self.notify("请先点击某个 AI 面板", severity="warning", timeout=2)
             return
-
         agent = focused.id.replace("log-", "")
         if agent not in self._agents:
             self.notify("请点击 AI 回答面板", severity="warning", timeout=2)
             return
 
-        session = self._sessions.get(self._active_tab)
-        text = ""
-        if session and session.mode == "quick" and session.quick_mode:
-            history = session.quick_mode.history_local
-            if history:
-                text = history[-1].get("responses", {}).get(agent, "")
-        elif session and session.mode == "deep" and session.orchestrator:
-            rounds = session.orchestrator.context_manager.full_rounds
-            if rounds:
-                text = rounds[-1].get("speeches", {}).get(agent, "")
+        self._enter_clean_view(agent)
 
-        if not text:
-            self.notify("暂无可复制内容", timeout=2)
-            return
+    def _enter_clean_view(self, agent: str) -> None:
+        self._clean_view_agent = agent
+        wrap = self.query_one(f"#wrap-{agent}")
+        wrap.add_class("--focus-panel")
+        self.screen.add_class("--clean-view")
+        self.query_one(f"#log-{agent}", RichLog).focus()
 
-        copied = False
-        try:
-            import pyperclip
-            pyperclip.copy(text)
-            copied = True
-        except Exception:
-            pass
-        if not copied:
-            try:
-                self.copy_to_clipboard(text)
-                copied = True
-            except Exception:
-                pass
-        if copied:
-            self.notify(f"已复制 {agent.upper()} 最后回答（{len(text)} 字）", timeout=2)
-            self.query_one("#main-input", RoundtableInput).focus()
-        else:
-            self.notify("复制失败，请检查 pyperclip 安装", severity="error", timeout=3)
+    def _exit_clean_view(self) -> None:
+        if self._clean_view_agent:
+            wrap = self.query_one(f"#wrap-{self._clean_view_agent}")
+            wrap.remove_class("--focus-panel")
+            self._clean_view_agent = ""
+        self.screen.remove_class("--clean-view")
+        self.query_one("#main-input", RoundtableInput).focus()
 
     def action_focus_input(self) -> None:
         self.query_one("#main-input", RoundtableInput).focus()
 
     def action_quit(self) -> None:
-        self.exit()
+        if self._clean_view_agent:
+            self._exit_clean_view()
+        else:
+            self.exit()
 
     def action_help_quit(self) -> None:
         self.notify("Press [b]esc[/b] to quit the app", title="Do you want to quit?")
