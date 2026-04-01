@@ -47,14 +47,9 @@ class History:
             base = Path(os.path.expanduser('~/Documents/ai-roundtable'))
 
         self.base_dir        = base
-        self.quick_dir       = base / 'Panel'
+        self.quick_dir       = base / 'Rapid Fire'
         self.deep_dir        = base / 'Deep Dive'
         self.attachments_dir = base / 'attachments'
-
-        # Migrate old folder name
-        old_quick = base / 'Rapid Fire'
-        if old_quick.exists() and not self.quick_dir.exists():
-            old_quick.rename(self.quick_dir)
 
         for d in (self.quick_dir, self.deep_dir, self.attachments_dir):
             d.mkdir(parents=True, exist_ok=True)
@@ -177,7 +172,7 @@ class History:
             # Date from parent directory name: quick/2026-03-31/001.md
             date_str = path.parent.name
             return {
-                'type': 'panel',
+                'type': 'rapid-fire',
                 'title': title[:30],
                 'file': path,
                 'date': date_str,
@@ -208,8 +203,8 @@ class History:
 
     def _write_quick_frontmatter(self, path: Path, today: str, session_id: str) -> None:
         path.write_text(
-            f"---\ndate: {today}\nsession: {session_id}\ntype: panel\n"
-            f"tags:\n  - ai-roundtable\n  - panel\n---\n",
+            f"---\ndate: {today}\nsession: {session_id}\ntype: rapid-fire\n"
+            f"tags:\n  - ai-roundtable\n  - rapid-fire\n---\n",
             encoding='utf-8',
         )
 
