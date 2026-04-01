@@ -397,23 +397,6 @@ Tab:hover {
     padding: 0 0 0 1;
 }
 
-/* ── Clean view mode ─────────────────────────────────────── */
-Screen.--clean-view Header          { display: none; }
-Screen.--clean-view Footer          { display: none; }
-Screen.--clean-view Tabs            { display: none; }
-Screen.--clean-view #input-row      { display: none; }
-Screen.--clean-view #moderator-wrap { display: none; }
-Screen.--clean-view #guest-panels   { height: 1fr; }
-Screen.--clean-view .agent-wrap     { display: none; }
-Screen.--clean-view .agent-wrap.--focus-panel {
-    display: block;
-    height: 1fr;
-    width: 1fr;
-    border-left: none;
-}
-Screen.--clean-view .agent-wrap.--focus-panel .agent-title    { display: none; }
-Screen.--clean-view .agent-wrap.--focus-panel .stream-preview { display: none; }
-Screen.--clean-view .agent-wrap.--focus-panel .guest-log      { height: 1fr; }
 """
 
 
@@ -464,7 +447,7 @@ class RoundtableApp(App):
         Binding("escape", "quit",            "退出"),
         Binding("/",      "focus_input",    show=False),
         Binding("ctrl+r", "compare",        "互评"),
-        Binding("ctrl+y", "copy_panel",     "专注面板"),
+        Binding("ctrl+y", "copy_panel",     "查看/复制"),
         Binding("ctrl+n", "new_tab",        "新建"),
         Binding("ctrl+w", "close_tab",      "关闭"),
         Binding("ctrl+o", "history",        "历史"),
@@ -500,7 +483,6 @@ class RoundtableApp(App):
         self._image_buffers: dict = {}
         self._image_count:   int = 0
         self._stream_buffers: Dict[str, str] = {}
-        self._clean_view_agent: str = ""
 
     # ── layout ────────────────────────────────────────────────────────────────
 
@@ -1078,11 +1060,7 @@ class RoundtableApp(App):
         self.notify(label, timeout=1)
 
     def action_copy_panel(self) -> None:
-        # If already in clean view, exit it
-        if self._clean_view_agent:
-            self._exit_clean_view()
-            return
-
+        import os, subprocess, tempfile
         focused = self.screen.focused
         if not isinstance(focused, RichLog) or not focused.id:
             self.notify("请先点击某个 AI 面板", severity="warning", timeout=2)
@@ -1092,59 +1070,39 @@ class RoundtableApp(App):
             self.notify("请点击 AI 回答面板", severity="warning", timeout=2)
             return
 
-        self._enter_clean_view(agent)
-
-    def _set_mouse_capture(self, enabled: bool) -> None:
-        """Toggle terminal mouse tracking so clean view allows native text selection."""
-        seq = "\x1b[?1003h\x1b[?1006h" if enabled else "\x1b[?1003l\x1b[?1006l"
-        try:
-            self._driver._file.write(seq)
-            self._driver._file.flush()
-        except Exception:
-            pass
-
-    def _enter_clean_view(self, agent: str) -> None:
-        self._clean_view_agent = agent
-        self.query_one(f"#wrap-{agent}").add_class("--focus-panel")
-        self.screen.add_class("--clean-view")
-
-        # Rewrite log as plain strings — no Markdown() wrapper means no Rich padding
-        log = self.query_one(f"#log-{agent}", RichLog)
-        log.clear()
         session = self._sessions.get(self._active_tab)
+        parts = []
         if session and session.quick_mode:
             for entry in session.quick_mode.history_local:
                 r = entry.get('responses', {}).get(agent, '')
                 if r:
-                    log.write(r)
+                    parts.append(r)
         elif session and session.orchestrator:
             for rnd in session.orchestrator.context_manager.full_rounds:
                 r = rnd.get('speeches', {}).get(agent, '')
                 if r:
-                    log.write(r)
+                    parts.append(r)
 
-        log.styles.padding = 0
-        log.focus()
-        self._set_mouse_capture(False)
+        if not parts:
+            self.notify("暂无内容", timeout=2)
+            return
 
-    def _exit_clean_view(self) -> None:
-        self._set_mouse_capture(True)
-        agent = self._clean_view_agent
-        self._clean_view_agent = ""
-        if agent:
-            self.query_one(f"#wrap-{agent}").remove_class("--focus-panel")
-        self.screen.remove_class("--clean-view")
-        self._switch_to_tab(self._active_tab)  # full replay restores Markdown rendering
-        self.query_one("#main-input", RoundtableInput).focus()
+        text = ("\n\n" + "─" * 60 + "\n\n").join(parts)
+        tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt',
+                                          delete=False, encoding='utf-8')
+        tmp.write(text)
+        tmp.close()
+        try:
+            with self.suspend():
+                subprocess.run(['less', '-R', '-S', tmp.name])
+        finally:
+            os.unlink(tmp.name)
 
     def action_focus_input(self) -> None:
         self.query_one("#main-input", RoundtableInput).focus()
 
     def action_quit(self) -> None:
-        if self._clean_view_agent:
-            self._exit_clean_view()
-        else:
-            self.exit()
+        self.exit()
 
     def action_help_quit(self) -> None:
         self.notify("Press [b]esc[/b] to quit the app", title="Do you want to quit?")
