@@ -409,6 +409,7 @@ Screen.--clean-view .agent-wrap.--focus-panel {
     display: block;
     height: 1fr;
     width: 1fr;
+    border-left: none;
 }
 Screen.--clean-view .agent-wrap.--focus-panel .agent-title    { display: none; }
 Screen.--clean-view .agent-wrap.--focus-panel .stream-preview { display: none; }
