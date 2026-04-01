@@ -1094,7 +1094,7 @@ class RoundtableApp(App):
             os.system('clear')
             print(text)
             print("\n" + "─" * 40)
-            print("按任意键返回…")
+            print("Esc 返回")
             fd = sys.stdin.fileno()
             old = termios.tcgetattr(fd)
             try:
