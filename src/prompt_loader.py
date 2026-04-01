@@ -26,7 +26,7 @@ class PromptLoader:
     def render(self, template_name: str, variables: Dict[str, str]) -> str:
         """
         Load template and replace {{variable}} placeholders with values.
-        Unknown variables are left as-is.
+        Raises ValueError if any placeholder remains after substitution.
         """
         template = self._load(template_name)
         result = template
@@ -34,6 +34,12 @@ class PromptLoader:
         for key, value in variables.items():
             placeholder = "{{" + key + "}}"
             result = result.replace(placeholder, str(value) if value is not None else "")
+
+        remaining = re.findall(r'\{\{(\w+)\}\}', result)
+        if remaining:
+            raise ValueError(
+                f"Prompt '{template_name}' has unresolved placeholders: {remaining}"
+            )
 
         return result
 

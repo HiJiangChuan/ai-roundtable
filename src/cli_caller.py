@@ -27,10 +27,7 @@ def strip_ansi(text: str) -> str:
 class CliCaller:
     def __init__(self, config: Dict[str, Any], timeout: int = None):
         self.config = config
-        self.default_timeout = timeout or (
-            config.get('cli', {}).get('timeout')
-            or config.get('deep', {}).get('timeout_seconds', 30)
-        )
+        self.default_timeout = timeout or config.get('deep', {}).get('timeout_seconds', 30)
         self.ais = config.get('ais', {})
 
         # Log file for debugging CLI calls

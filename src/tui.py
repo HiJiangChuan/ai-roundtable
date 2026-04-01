@@ -587,7 +587,7 @@ class RoundtableApp(App):
         # Find neighbour to switch to
         ids = list(self._sessions.keys())
         idx = ids.index(tab_id)
-        neighbour = ids[idx - 1] if idx > 0 else ids[1]
+        neighbour = ids[idx + 1] if idx + 1 < len(ids) else ids[idx - 1]
 
         tabs.remove_tab(tab_id)
         del self._sessions[tab_id]
@@ -1054,7 +1054,7 @@ class RoundtableApp(App):
             if history:
                 text = history[-1].get("responses", {}).get(agent, "")
         elif session and session.mode == "deep" and session.orchestrator:
-            rounds = getattr(session.orchestrator, '_rounds', [])
+            rounds = session.orchestrator.context_manager.full_rounds
             if rounds:
                 text = rounds[-1].get("speeches", {}).get(agent, "")
 

@@ -49,14 +49,17 @@ class QuickMode:
 
         # Lazily create the MD file on first message
         if self.history and self.quick_file is None:
-            _, self.quick_file = self.history.new_quick_session()
-            cb("quick_file_ready", quick_file=self.quick_file)
+            try:
+                _, self.quick_file = self.history.new_quick_session()
+                cb("quick_file_ready", quick_file=self.quick_file)
+            except Exception as e:
+                cb("error", message=f"历史文件创建失败: {e}")
 
         if self.history and self.quick_file:
             try:
                 self.history.append_quick_entry(question, responses, path=self.quick_file)
-            except Exception:
-                pass
+            except Exception as e:
+                cb("error", message=f"历史写入失败: {e}")
 
         # Generate title from first question only
         if len(self.history_local) == 1:
@@ -110,13 +113,11 @@ class QuickMode:
         if self.history and self.quick_file:
             try:
                 self.history.append_quick_compare(compare_responses, path=self.quick_file)
-            except Exception:
-                pass
+            except Exception as e:
+                cb("error", message=f"互评历史写入失败: {e}")
 
     def get_context_for_deep(self) -> Dict[str, Any]:
         if not self.history_local:
             return {}
         return self.history_local[-1]
 
-    def reset(self):
-        self.history_local = []
