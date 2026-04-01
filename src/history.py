@@ -48,8 +48,8 @@ class History:
             base = Path(os.path.expanduser('~/Documents/ai-roundtable'))
 
         self.base_dir        = base
-        self.quick_dir       = base / 'quick'
-        self.deep_dir        = base / 'rounds'
+        self.quick_dir       = base / 'Rapid Fire'
+        self.deep_dir        = base / 'Deep Dive'
         self.attachments_dir = base / 'attachments'
 
         for d in (self.quick_dir, self.deep_dir, self.attachments_dir):
@@ -173,7 +173,7 @@ class History:
             # Date from parent directory name: quick/2026-03-31/001.md
             date_str = path.parent.name
             return {
-                'type': 'quick',
+                'type': 'rapid-fire',
                 'title': title[:30],
                 'file': path,
                 'date': date_str,
@@ -192,7 +192,7 @@ class History:
             # Date from parent directory name: rounds/2026-03-31/topic.md
             date_str = path.parent.name
             return {
-                'type': 'deep',
+                'type': 'deep-dive',
                 'title': title[:30],
                 'file': path,
                 'date': date_str,
@@ -204,8 +204,8 @@ class History:
 
     def _write_quick_frontmatter(self, path: Path, today: str, session_id: str) -> None:
         path.write_text(
-            f"---\ndate: {today}\nsession: {session_id}\ntype: quick\n"
-            f"tags:\n  - ai-roundtable\n  - quick\n---\n",
+            f"---\ndate: {today}\nsession: {session_id}\ntype: rapid-fire\n"
+            f"tags:\n  - ai-roundtable\n  - rapid-fire\n---\n",
             encoding='utf-8',
         )
 
@@ -260,8 +260,8 @@ class History:
 
     def _write_deep_header(self, path: Path, topic: str, today: str) -> None:
         path.write_text(
-            f"---\ntitle: {topic}\ndate: {today}\ntype: deep\nrounds: 0\n"
-            f"tags:\n  - ai-roundtable\n  - deep\n---\n\n# {topic}\n\n",
+            f"---\ntitle: {topic}\ndate: {today}\ntype: deep-dive\nrounds: 0\n"
+            f"tags:\n  - ai-roundtable\n  - deep-dive\n---\n\n# {topic}\n\n",
             encoding='utf-8',
         )
 

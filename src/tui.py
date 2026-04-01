@@ -107,8 +107,8 @@ class HistoryModal(ModalScreen):
 
     def __init__(self, sessions: list):
         super().__init__()
-        self._quick = [s for s in sessions if s['type'] == 'quick']
-        self._deep  = [s for s in sessions if s['type'] == 'deep']
+        self._quick = [s for s in sessions if s['type'] == 'rapid-fire']
+        self._deep  = [s for s in sessions if s['type'] == 'deep-dive']
         # col: 0=quick, 1=deep; row: index within column
         self._col = 0 if self._quick else (1 if self._deep else 0)
         self._rows = [0, 0]   # cursor row per column
@@ -789,7 +789,7 @@ class RoundtableApp(App):
             self._set_agent_title(agent)
 
             if role == "quick":
-                divider = "[dim]── 快问 ──[/dim]"
+                divider = "[dim]── Rapid Fire ──[/dim]"
             elif role == "compare":
                 divider = "[dim]── 互评 ──[/dim]"
             else:
@@ -1001,7 +1001,7 @@ class RoundtableApp(App):
         title  = result.get('title', '历史')
         fpath  = result.get('file')
 
-        if s_type == 'quick' and fpath:
+        if s_type == 'rapid-fire' and fpath:
             entries   = self._history.load_last_entries(Path(fpath), n=3)
             cur       = self._sessions.get(self._active_tab)
             cur_empty = cur and cur.mode == "quick" and not cur.log_entries
@@ -1021,8 +1021,8 @@ class RoundtableApp(App):
             else:
                 self._create_tab(mode="quick", title=title,
                                  preload_entries=entries, quick_file=Path(fpath))
-        elif s_type == 'deep':
-            self.notify(f"深度讨论仅供查阅：{fpath}", timeout=4)
+        elif s_type == 'deep-dive':
+            self.notify(f"Deep Dive 仅供查阅：{fpath}", timeout=4)
 
     def action_switch_tab_n(self, n: str) -> None:
         ids = list(self._sessions.keys())
