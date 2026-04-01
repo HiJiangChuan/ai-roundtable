@@ -65,7 +65,7 @@ class QuickMode:
             title = raw.strip().splitlines()[0]
             title = re.sub(r'[\\/:*?"<>|【】《》\s]', '', title)[:10]
             if title:
-                cb("session_title", title=title)
+                cb("session_title", title=title, quick_file=self.quick_file)
         except Exception:
             pass
 

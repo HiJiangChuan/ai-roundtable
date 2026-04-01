@@ -593,20 +593,26 @@ class RoundtableApp(App):
             except Exception:
                 pass
 
-    def _rename_quick_file(self, title: str) -> None:
+    def _rename_quick_file(self, title: str, quick_file=None) -> None:
         """Rename 001.md → 001-title.md and update session references."""
-        session = self._sessions.get(self._active_tab)
-        if not session or not session.quick_file:
+        # Find the session that owns this file
+        target_session = None
+        for session in self._sessions.values():
+            if session.quick_file and session.quick_file == quick_file:
+                target_session = session
+                break
+        if target_session is None:
             return
-        old_path = session.quick_file
-        if '-' in old_path.stem:   # already renamed
+        old_path = target_session.quick_file
+        # Guard: only rename plain numbered files (e.g. 001.md)
+        if not old_path.stem.isdigit():
             return
         new_path = old_path.parent / f"{old_path.stem}-{title}.md"
         try:
             old_path.rename(new_path)
-            session.quick_file = new_path
-            if session.quick_mode:
-                session.quick_mode.quick_file = new_path
+            target_session.quick_file = new_path
+            if target_session.quick_mode:
+                target_session.quick_mode.quick_file = new_path
         except Exception:
             pass
 
@@ -801,9 +807,10 @@ class RoundtableApp(App):
         elif event_type == "session_title":
             if not _replay:
                 title = kwargs.get("title", "")
+                quick_file = kwargs.get("quick_file")
                 if title:
                     self._update_active_tab_title(title)
-                    self._rename_quick_file(title)
+                    self._rename_quick_file(title, quick_file)
 
         elif event_type == "status":
             if _replay:
