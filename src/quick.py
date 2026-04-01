@@ -36,7 +36,11 @@ class QuickMode:
                 "question": question,
                 "context_history": context,
             })
-            response = await self.cli_caller.call(agent, prompt)
+
+            def on_chunk(chunk: str):
+                cb("agent_chunk", agent=agent, chunk=chunk)
+
+            response = await self.cli_caller.call_stream(agent, prompt, on_chunk)
             responses[agent] = response
             cb("agent_response", agent=agent, content=response, role="quick")
 

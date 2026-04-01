@@ -283,6 +283,18 @@ Tab:hover {
     background: #0d1f38;
 }
 
+.stream-preview {
+    height: auto;
+    max-height: 10;
+    padding: 0 1;
+    color: #6e7681;
+    display: none;
+}
+
+.stream-preview.--active {
+    display: block;
+}
+
 .agent-wrap.claude .guest-log:focus { background: #0a1628; }
 .agent-wrap.gemini .guest-log:focus { background: #081a0e; }
 .agent-wrap.codex  .guest-log:focus { background: #1a1200; }
@@ -447,11 +459,12 @@ class RoundtableApp(App):
         self._active_tab:   str = ""
         self._tab_counter:  int = 0
 
-        self._cb_queue:     asyncio.Queue = None
+        self._cb_queue:      asyncio.Queue = None
         self._paste_buffers: dict = {}
-        self._paste_count:  int = 0
+        self._paste_count:   int = 0
         self._image_buffers: dict = {}
-        self._image_count:  int = 0
+        self._image_count:   int = 0
+        self._stream_buffers: Dict[str, str] = {}
 
     # ── layout ────────────────────────────────────────────────────────────────
 
@@ -466,6 +479,7 @@ class RoundtableApp(App):
                                  id=f"title-{agent}", classes="agent-title")
                     yield RichLog(id=f"log-{agent}", classes="guest-log",
                                   wrap=True, highlight=False, markup=True)
+                    yield Static("", id=f"stream-{agent}", classes="stream-preview")
 
         with Vertical(id="moderator-wrap"):
             yield Static("🎙 主持人", id="moderator-title")
@@ -745,6 +759,16 @@ class RoundtableApp(App):
             else:
                 self._set_agent_title(agent, "⟳")
 
+        elif event_type == "agent_chunk":
+            if _replay:
+                return
+            agent = kwargs.get("agent", "")
+            chunk = kwargs.get("chunk", "")
+            self._stream_buffers[agent] = self._stream_buffers.get(agent, "") + chunk
+            w = self.query_one(f"#stream-{agent}", Static)
+            w.add_class("--active")
+            w.update(self._stream_buffers[agent])
+
         elif event_type == "agent_response":
             agent   = kwargs.get("agent", "")
             content = kwargs.get("content", "")
@@ -753,6 +777,13 @@ class RoundtableApp(App):
 
             if role == "moderator":
                 return
+
+            # Clear stream preview
+            if not _replay and agent in AGENTS:
+                w = self.query_one(f"#stream-{agent}", Static)
+                w.remove_class("--active")
+                w.update("")
+                self._stream_buffers.pop(agent, None)
 
             log = self._log(agent)
             self._set_agent_title(agent)
