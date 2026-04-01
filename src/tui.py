@@ -413,7 +413,7 @@ Screen.--clean-view .agent-wrap.--focus-panel {
 }
 Screen.--clean-view .agent-wrap.--focus-panel .agent-title    { display: none; }
 Screen.--clean-view .agent-wrap.--focus-panel .stream-preview { display: none; }
-Screen.--clean-view .agent-wrap.--focus-panel .guest-log      { height: 1fr; }
+Screen.--clean-view .agent-wrap.--focus-panel .guest-log      { height: 1fr; padding: 0; }
 """
 
 
