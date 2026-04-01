@@ -1123,6 +1123,7 @@ class RoundtableApp(App):
                 if r:
                     log.write(r)
 
+        log.styles.padding = 0
         log.focus()
         self._set_mouse_capture(False)
 
