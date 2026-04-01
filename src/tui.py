@@ -1095,6 +1095,9 @@ class RoundtableApp(App):
     def action_quit(self) -> None:
         self.exit()
 
+    def action_help_quit(self) -> None:
+        self.notify("Press [b]esc[/b] to quit the app", title="Do you want to quit?")
+
     # ── Workers ───────────────────────────────────────────────────────────────
 
     @work(exclusive=True)
