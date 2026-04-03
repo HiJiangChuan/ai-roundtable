@@ -73,6 +73,7 @@ class CliCaller:
         cmd: list,
         on_stdout_line: Callable[[bytes], None],
         on_idle: Optional[Callable[[float], None]] = None,
+        on_stderr_line: Optional[Callable[[str], None]] = None,
     ) -> tuple:
         """
         Run subprocess with dual-timeout.
@@ -109,6 +110,10 @@ class CliCaller:
                 last_activity = time.monotonic()
                 idle_notified = False
                 stderr_chunks.append(line)
+                if on_stderr_line:
+                    text = strip_ansi(line.decode('utf-8', errors='replace')).strip()
+                    if text:
+                        on_stderr_line(text)
 
         async def monitor():
             nonlocal idle_notified, was_killed
@@ -192,7 +197,8 @@ class CliCaller:
 
     async def call_stream(self, agent: str, prompt: str,
                           on_chunk: Callable[[str], None],
-                          on_idle: Optional[Callable[[float], None]] = None) -> str:
+                          on_idle: Optional[Callable[[float], None]] = None,
+                          on_stderr: Optional[Callable[[str], None]] = None) -> str:
         if agent not in self.ais:
             return f"[无响应：未知 agent '{agent}']"
 
@@ -219,6 +225,7 @@ class CliCaller:
                 agent, cmd,
                 on_stdout_line=on_stdout_line,
                 on_idle=on_idle,
+                on_stderr_line=on_stderr,
             )
             elapsed = time.monotonic() - t0
 

@@ -802,6 +802,16 @@ class RoundtableApp(App):
             elapsed = int(kwargs.get("elapsed", 0))
             self._set_agent_title(agent, f"⏳ {elapsed}s")
 
+        elif event_type == "agent_stderr":
+            if _replay:
+                return
+            agent = kwargs.get("agent", "")
+            line  = kwargs.get("line", "")
+            if agent in self._agents:
+                w = self.query_one(f"#stream-{agent}", Static)
+                w.add_class("--active")
+                w.update(f"[dim]{escape(line[:120])}[/dim]")
+
         elif event_type == "agent_chunk":
             if _replay:
                 return

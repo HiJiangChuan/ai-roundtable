@@ -46,7 +46,11 @@ class QuickMode:
             def on_idle(elapsed: float):
                 cb("agent_idle", agent=agent, elapsed=elapsed)
 
-            response = await self.cli_caller.call_stream(agent, prompt, on_chunk, on_idle=on_idle)
+            def on_stderr(line: str):
+                cb("agent_stderr", agent=agent, line=line)
+
+            response = await self.cli_caller.call_stream(
+                agent, prompt, on_chunk, on_idle=on_idle, on_stderr=on_stderr)
             responses[agent] = response
             cb("agent_response", agent=agent, content=response, role="quick")
 
