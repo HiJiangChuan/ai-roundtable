@@ -216,7 +216,7 @@ class CliCaller:
             chunk, is_final = self._parse_stream_line(agent, line)
             if is_final:
                 final_text = chunk
-            elif chunk:
+            elif chunk and chunk != '\x00':   # \x00 仅作心跳，不追加内容
                 full_text += chunk
                 on_chunk(chunk)
 
@@ -263,7 +263,10 @@ class CliCaller:
 
         elif agent == 'claude':
             t = data.get('type', '')
-            if t == 'stream_event':
+            if t == 'system':
+                # system/init 是 Claude 存活的最早信号，返回空 chunk 触发 last_activity 重置
+                return '\x00', False
+            elif t == 'stream_event':
                 ev = data.get('event', {})
                 if ev.get('type') == 'content_block_delta':
                     delta = ev.get('delta', {})

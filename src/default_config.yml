@@ -5,7 +5,7 @@ ais:
     flags: ["--dangerously-skip-permissions"]
     color: "blue"
     icon: "🔵"
-    timeout: 60
+    timeout: 600
   gemini:
     cmd: "gemini"
     prompt_flag: "-p"
