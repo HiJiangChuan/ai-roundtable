@@ -12,14 +12,14 @@ ais:
     flags: ["--yolo"]
     color: "green"
     icon: "🟢"
-    timeout: 90
+    timeout: 300     # 仅用于 idle 通知间隔，进程自然退出为完成信号
   codex:
     cmd: "codex"
     subcommand: "exec"
     flags: []
     color: "yellow"
     icon: "🟡"
-    timeout: 60
+    timeout: 300     # 仅用于 idle 通知间隔，task_complete 事件为完成信号
 
 deep:
   full_rounds_kept: 3
@@ -29,4 +29,4 @@ deep:
 history:
   obsidian_vault: ""  # 填入 Obsidian vault 路径，留空则存至 ~/Documents/ai-roundtable/
 
-version: "0.0.38"
+version: "0.0.42"
