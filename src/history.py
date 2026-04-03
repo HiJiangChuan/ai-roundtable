@@ -63,8 +63,13 @@ class History:
         today = datetime.now().strftime('%Y-%m-%d')
         day_dir = self.quick_dir / today
         day_dir.mkdir(parents=True, exist_ok=True)
-        existing = sorted(day_dir.glob('*.md'))
-        num = len(existing) + 1
+        # Find the highest numeric prefix among existing files to avoid collisions
+        max_num = 0
+        for f in day_dir.glob('*.md'):
+            stem = f.stem.split('-')[0]
+            if stem.isdigit():
+                max_num = max(max_num, int(stem))
+        num = max_num + 1
         session_id = f"{num:03d}"
         path = day_dir / f"{session_id}.md"
         self._write_quick_frontmatter(path, today, session_id)

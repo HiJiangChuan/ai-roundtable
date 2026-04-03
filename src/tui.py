@@ -16,7 +16,22 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Header, Input, RichLog, Static, Tabs, Tab
 from textual.markup import escape
 from textual.screen import ModalScreen
-from rich.markdown import Markdown
+from rich.markdown import Markdown, CodeBlock as _CodeBlock
+from rich.text import Text as _Text
+
+
+class _FoldingCodeBlock(_CodeBlock):
+    """Code block that folds long lines mid-token instead of clipping them."""
+    def __rich_console__(self, console, options):
+        code = str(self.text).rstrip()
+        yield _Text(" ", style="on #161b22")  # top padding
+        for line in (code.split('\n') if code else ['']):
+            yield _Text(" " + line, style="on #161b22", overflow="fold", no_wrap=False)
+        yield _Text(" ", style="on #161b22")  # bottom padding
+
+
+class _FoldingMarkdown(Markdown):
+    elements = {**Markdown.elements, "fence": _FoldingCodeBlock, "code_block": _FoldingCodeBlock}
 
 sys.path.insert(0, str(Path(__file__).parent))
 from orchestrator import Orchestrator
@@ -490,7 +505,7 @@ class RoundtableApp(App):
         yield Header(show_clock=True)
         yield Tabs(id="session-tabs")
 
-        with Vertical(id="guest-panels"):
+        with Vertical(id="guest-panels", classes="horizontal"):
             for agent in self._agents:
                 icon = _agent_icon(self.config, agent)
                 with Vertical(id=f"wrap-{agent}", classes=f"agent-wrap {agent}"):
@@ -676,7 +691,7 @@ class RoundtableApp(App):
             for agent, content in entry.get('responses', {}).items():
                 log = self._log(agent)
                 log.write("[dim]── 历史 ──[/dim]")
-                log.write(Markdown(content))
+                log.write(_FoldingMarkdown(content))
                 log.write("")
             return
         # Replay normal events silently (no notifications/status changes)
@@ -780,6 +795,13 @@ class RoundtableApp(App):
             else:
                 self._set_agent_title(agent, "⟳")
 
+        elif event_type == "agent_idle":
+            if _replay:
+                return
+            agent   = kwargs.get("agent", "")
+            elapsed = int(kwargs.get("elapsed", 0))
+            self._set_agent_title(agent, f"⏳ {elapsed}s")
+
         elif event_type == "agent_chunk":
             if _replay:
                 return
@@ -817,7 +839,7 @@ class RoundtableApp(App):
                 divider = f"[dim]── 轮 {rnd} ──[/dim]"
 
             log.write(divider)
-            log.write(Markdown(content))
+            log.write(_FoldingMarkdown(content))
             log.write("")
 
 
@@ -850,7 +872,7 @@ class RoundtableApp(App):
             question = kwargs.get("question", "")
             log = self._log(agent)
             log.write(f"[dim]── @直问: {escape(question[:60])} ──[/dim]")
-            log.write(Markdown(content))
+            log.write(_FoldingMarkdown(content))
             log.write("")
 
         elif event_type == "quick_file_ready":
@@ -900,7 +922,7 @@ class RoundtableApp(App):
             for agent in self._agents:
                 log = self._log(agent)
                 log.write("[bold yellow]── 总结 ──[/bold yellow]")
-                log.write(Markdown(summary))
+                log.write(_FoldingMarkdown(summary))
             self.query_one("#moderator-title", Static).update("🎙 会话结束")
             inp = self.query_one("#main-input", RoundtableInput)
             inp.disabled = True
@@ -1058,6 +1080,8 @@ class RoundtableApp(App):
         panels.toggle_class("horizontal")
         label = "横向" if "horizontal" in panels.classes else "竖向"
         self.notify(label, timeout=1)
+        # Re-render content at new panel width
+        self.call_after_refresh(self._switch_to_tab, self._active_tab)
 
     def action_copy_panel(self) -> None:
         import os

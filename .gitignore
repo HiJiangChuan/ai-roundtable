@@ -4,6 +4,10 @@
 # reference materials (local only)
 reference/
 
+# build artifacts
+dist/
+*.egg-info/
+
 # python cache
 __pycache__/
 *.pyc

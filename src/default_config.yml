@@ -27,6 +27,6 @@ deep:
   timeout_seconds: 60
 
 history:
-  obsidian_vault: "/Users/chuan/Workspace/notes"  # 留空则默认存至 ~/Documents/ai-roundtable/
+  obsidian_vault: ""  # 填入 Obsidian vault 路径，留空则存至 ~/Documents/ai-roundtable/
 
-version: "0.0.39"
+version: "0.0.38"

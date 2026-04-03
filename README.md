@@ -1,111 +1,232 @@
 # AI Roundtable
 
-让 Claude、Gemini、Codex 围坐一桌，就任意议题展开真正的多轮辩论。
+**Put Claude, Gemini, and Codex around the same table.**
 
-## 效果
+A terminal UI that runs multiple AI assistants side-by-side and lets them debate any topic in real time — in parallel, with no switching between windows.
 
 ```
-🔵 CLAUDE                        🟢 GEMINI                        🟡 CODEX
-─────────────────────────────    ─────────────────────────────    ──────────────────────────
-── 快问 ──                        ── 快问 ──                        ── 快问 ──
-大模型的核心竞争力在于推理能力，     我认为数据飞轮才是护城河所在，      工程落地能力被严重低估……
+🔵 CLAUDE                     🟢 GEMINI                     🟡 CODEX
+──────────────────────────    ──────────────────────────    ──────────────────────────
+── Rapid Fire ──              ── Rapid Fire ──              ── Rapid Fire ──
+
+The core moat for LLMs is    Data flywheels matter more    Engineering execution is
+reasoning capability. A       than model quality — the      underrated. The teams that
+model that thinks better      companies accumulating the     ship fastest learn fastest,
+will always outperform one    best proprietary datasets      regardless of which model
+that has more data but less   will dominate long-term.      they use.
+coherent output.
 ```
 
-## 两种模式
+---
 
-### 快问（默认）
-三个 AI **并行**回答同一个问题，适合快速对比不同视角。
+## Requirements
 
-- `/compare` — 让三个 AI 互评彼此的回答
-- `^t` — 将当前问题升级为深度讨论
+You need **at least one** of the following AI CLIs installed and authenticated:
 
-### 深度讨论
-主持人轮换制（Gemini → Codex → Claude → …），每轮结束后主持人分析矛盾点、分配行动类型，推动讨论深入。
+| CLI | Install | Auth |
+|-----|---------|------|
+| [Claude Code](https://claude.ai/code) | `npm install -g @anthropic-ai/claude-code` | `claude login` |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `npm install -g @google/gemini-cli` | `gemini auth` |
+| [Codex CLI](https://github.com/openai/codex) | `npm install -g @openai/codex` | Set `OPENAI_API_KEY` |
 
-**行动类型**：陈述立场 / 反驳 / 补充 / 追问 / 挑战前提 / 综合
+AI Roundtable works with 1, 2, or all 3. Any missing CLI is simply skipped.
 
-**轮次指令**：
-| 输入 | 作用 |
-|------|------|
-| `可` | 开始下一轮 |
-| `止` | 结束会话并生成总结 |
-| `深入此节` | 不推进轮次，围绕当前矛盾点再挖一层 |
-| `@claude 你的看法？` | 单独问某个 AI |
+---
 
-## 安装
-
-**前置条件**：已安装并登录 `claude`、`gemini`、`codex` CLI。
+## Installation
 
 ```bash
-git clone https://github.com/yourname/ai-roundtable
+pip install ai-roundtable
+```
+
+Then launch from anywhere:
+
+```bash
+ai-roundtable
+```
+
+### From source
+
+```bash
+git clone https://github.com/HiJiangChuan/ai-roundtable
 cd ai-roundtable
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-chmod +x bin/roundtable
+python3 -m venv .venv && .venv/bin/pip install -e .
+ai-roundtable
 ```
 
-## 使用
+---
 
-```bash
-./bin/roundtable          # 快问模式启动
-./bin/roundtable --deep   # 直接进入深度讨论
+## Two Modes
+
+### Rapid Fire (default)
+
+All active AIs answer your question **in parallel**. Results appear as they stream in.
+
+Best for: quick comparisons, getting multiple perspectives fast, gut-checking an idea.
+
+```
+You: What's the biggest risk in microservices architecture?
+
+🔵 CLAUDE  →  Distributed systems complexity: when a service call
+               fails, tracing the root cause across 12 services...
+
+🟢 GEMINI  →  Operational overhead is underestimated. Teams often
+               migrate to microservices without the tooling to...
+
+🟡 CODEX   →  Data consistency. Once you split the database, every
+               cross-service transaction becomes a distributed...
 ```
 
-**快捷键**：
+**Rapid Fire commands:**
 
-| 快捷键 | 功能 |
-|--------|------|
-| `Ctrl+T` | 切换模式 |
-| `Ctrl+Y` | 复制当前面板内容（先点击面板） |
-| `Ctrl+E` | 导出会话为 Markdown |
-| `Ctrl+N` | 新建会话 |
-| `Ctrl+Q` | 退出 |
+| Input | Action |
+|-------|--------|
+| Any text | Ask all AIs in parallel |
+| `Ctrl+R` | Each AI critiques the others' last answers |
+| `Ctrl+T` | Upgrade this question to a Deep Dive session |
 
-## 配置
+---
 
-`config.yml` 可调整：
+### Deep Dive (`ai-roundtable --deep`)
+
+A structured multi-round debate with a rotating moderator.
+
+Each round: all AIs speak → moderator (rotating: Gemini → Codex → Claude → …) analyzes contradictions, assigns action types, and drives the next question.
+
+**Action types:** Take a position / Rebut / Supplement / Probe / Challenge premise / Synthesize
+
+Best for: complex decisions, architecture debates, exploring a problem space thoroughly.
+
+**Deep Dive commands:**
+
+| Input | Action |
+|-------|--------|
+| Topic text | Start the session (Round 0 opening) |
+| `可` | Proceed to next round |
+| `止` | End session and generate summary |
+| `深入此节` | Stay on current round, dig one level deeper |
+| `@claude your question` | Direct question to a specific AI only |
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Esc` | Quit |
+| `/` | Focus input box |
+| `Ctrl+T` | Toggle mode (Rapid Fire ↔ Deep Dive) |
+| `Ctrl+L` | Toggle layout (vertical ↔ horizontal panels) |
+| `Ctrl+R` | Peer review — AIs critique each other |
+| `Ctrl+Y` | View panel content full-screen (click a panel first) |
+| `Ctrl+N` | New tab |
+| `Ctrl+W` | Close current tab |
+| `Ctrl+O` | Open session history |
+| `Ctrl+V` | Paste image into question |
+| `Ctrl+1`–`4` | Switch to tab 1–4 |
+
+---
+
+## Configuration
+
+On first launch, a config file is created at `~/.config/ai-roundtable/config.yml`.
 
 ```yaml
 ais:
   claude:
     cmd: "claude"
+    prompt_flag: "-p"
     flags: ["--dangerously-skip-permissions"]
+    timeout: 60
+    # enabled: false  ← uncomment to disable this AI
+
+  gemini:
+    cmd: "gemini"
+    prompt_flag: "-p"
+    flags: ["--yolo"]
+    timeout: 90
+
+  codex:
+    cmd: "codex"
+    subcommand: "exec"
+    flags: []
+    timeout: 60
 
 deep:
-  moderator_rotation: ["gemini", "codex", "claude"]  # 主持人轮换顺序
-  speaking_order: ["claude", "codex", "gemini"]       # 嘉宾发言顺序
-  full_rounds_kept: 3                                  # 保留完整的最近 N 轮
-  timeout_seconds: 30                                  # 每个 AI 的超时时间
+  full_rounds_kept: 3      # Full rounds kept in context window
+  compress_summary_max: 80  # Max chars per compressed round summary
+  timeout_seconds: 60       # Per-AI timeout for Deep Dive rounds
 
 history:
-  save_dir: "~/.ai-roundtable/history"   # 会话记录保存位置
+  obsidian_vault: ""        # Path to your Obsidian vault, e.g. ~/notes
+                            # Leave empty to save to ~/Documents/ai-roundtable/
 ```
 
-## 会话记录
+### Disabling an AI
 
-每次会话自动保存到 `~/.ai-roundtable/history/`，JSON + Markdown 各一份，也可按 `Ctrl+E` 随时导出。
+If you don't have Codex installed, add `enabled: false`:
 
-## 项目结构
+```yaml
+ais:
+  codex:
+    enabled: false
+```
+
+AI Roundtable adapts automatically — with 2 AIs it runs pair discussions, with 1 AI it uses a solo roundtable mode where the AI invents multiple personas and debates itself.
+
+---
+
+## Session History
+
+Every session is automatically saved as Markdown. Files are written to:
+
+- **With Obsidian**: `<vault>/ai-roundtable/Rapid Fire/YYYY-MM-DD/NNN-topic.md`
+- **Without Obsidian**: `~/Documents/ai-roundtable/Rapid Fire/YYYY-MM-DD/NNN-topic.md`
+
+Each file includes YAML frontmatter (date, type, tags) and is formatted with Obsidian callout blocks, ready to view in your vault immediately.
+
+---
+
+## Debugging
+
+CLI call logs are written to `~/.ai-roundtable/cli.log`:
+
+```
+[15:35:21] claude  OK        8.6s  211 chars (stream)
+[15:35:35] gemini  OK       22.5s  240 chars (stream)
+[15:35:38] codex   OK       25.2s  220 chars (stream)
+```
+
+---
+
+## Project Structure
 
 ```
 ai-roundtable/
-├── bin/roundtable        # 启动脚本
-├── config.yml            # 配置文件
-├── prompts/              # Prompt 模板
-│   ├── opening.md        # 开场（第0轮）
-│   ├── guest.md          # 嘉宾发言（深度模式）
-│   ├── guest_quick.md    # 嘉宾发言（快问模式）
-│   ├── moderator.md      # 主持人综述
-│   ├── compare.md        # 互评
-│   └── compress.md       # 上下文压缩
 ├── src/
-│   ├── main.py           # 入口
-│   ├── tui.py            # 终端界面
-│   ├── orchestrator.py   # 深度讨论状态机
-│   ├── quick.py          # 快问模式
-│   ├── cli_caller.py     # AI CLI 调用
-│   ├── context_manager.py# 上下文压缩管理
-│   ├── history.py        # 会话历史
-│   └── prompt_loader.py  # Prompt 加载渲染
+│   ├── main.py             # Entry point, config/path resolution
+│   ├── tui.py              # Terminal UI (Textual)
+│   ├── quick.py            # Rapid Fire mode logic
+│   ├── orchestrator.py     # Deep Dive state machine
+│   ├── cli_caller.py       # AI CLI subprocess runner + streaming
+│   ├── context_manager.py  # 3-layer context compression
+│   ├── history.py          # Session persistence (Markdown + Obsidian)
+│   ├── prompt_loader.py    # Prompt template loader
+│   └── prompts/
+│       ├── guest_quick.md  # Rapid Fire prompt
+│       ├── guest.md        # Deep Dive guest prompt
+│       ├── opening.md      # Session opening (Round 0)
+│       ├── moderator.md    # Moderator synthesis prompt
+│       ├── compare.md      # Peer review prompt
+│       ├── compress.md     # Context compression prompt
+│       └── solo_roundtable.md  # Single-AI roundtable prompt
+├── config.yml              # Default config (source mode)
+├── pyproject.toml
 └── requirements.txt
 ```
+
+---
+
+## License
+
+MIT
