@@ -420,15 +420,19 @@ Tab:hover {
 
 class RoundtableInput(Input):
     BINDINGS = [
-        Binding("ctrl+v",      "paste",       show=False),
-        Binding("ctrl+delete", "clear_input", show=False),
+        Binding("ctrl+v", "paste", show=False),
     ]
 
-    def action_clear_input(self) -> None:
-        self.value = ""
-
     def _on_key(self, event: events.Key) -> None:
-        """↑ 键恢复上一条发送的输入（每 Tab 独立，内存中，退出即清除）。"""
+        """↑ 键恢复上一条发送的输入；Ctrl+⌫ 清空输入框。"""
+        # Ctrl+⌫ 清空：Mac 终端发 ctrl+h，也兼容 ctrl+delete
+        if event.key in ("ctrl+h", "ctrl+delete"):
+            if self.value:
+                event.stop()
+                event.prevent_default()
+                self.value = ""
+                return
+
         if event.key != "up":
             return
         app = self.app
