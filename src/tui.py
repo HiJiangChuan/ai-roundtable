@@ -425,13 +425,12 @@ class RoundtableInput(Input):
 
     def _on_key(self, event: events.Key) -> None:
         """↑ 键恢复上一条发送的输入；Ctrl+⌫ 清空输入框。"""
-        # Ctrl+A 全选（清空输入框，等效于全选后删除）
+        # Ctrl+A 全选
         if event.key == "ctrl+a":
-            if self.value:
-                event.stop()
-                event.prevent_default()
-                self.value = ""
-                return
+            event.stop()
+            event.prevent_default()
+            self.select_all()
+            return
 
         if event.key != "up":
             return
