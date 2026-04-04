@@ -52,8 +52,7 @@ class TabSession:
     orchestrator: Optional[Orchestrator] = None
     log_entries: List[Tuple] = field(default_factory=list)  # for replay on switch
     quick_file: Optional[Path] = None            # quick sessions only
-    input_history: List[str] = field(default_factory=list)  # ↑ key history
-    input_history_idx: int = -1                  # -1 = not browsing
+    last_input: str = ""                         # ↑ 键恢复上一条输入
 
 
 # ── History Modal ─────────────────────────────────────────────────────────────
@@ -425,42 +424,19 @@ class RoundtableInput(Input):
     ]
 
     def _on_key(self, event: events.Key) -> None:
-        """↑/↓ 键在输入历史中导航（每 Tab 独立）。"""
+        """↑ 键恢复上一条发送的输入（每 Tab 独立，内存中，退出即清除）。"""
+        if event.key != "up":
+            return
         app = self.app
         if not hasattr(app, '_sessions') or not app._active_tab:
             return
         session = app._sessions.get(app._active_tab)
-        if not session or not session.input_history:
+        if not session or not session.last_input:
             return
-
-        hist = session.input_history
-        idx  = session.input_history_idx
-
-        if event.key == "up":
-            event.stop()
-            event.prevent_default()
-            if idx == -1:
-                # 第一次按上键：保存草稿，跳到最新一条
-                app._input_draft = self.value
-                session.input_history_idx = len(hist) - 1
-            elif idx > 0:
-                session.input_history_idx -= 1
-            self.value = hist[session.input_history_idx]
-            self.cursor_position = len(self.value)
-
-        elif event.key == "down":
-            event.stop()
-            event.prevent_default()
-            if idx == -1:
-                return
-            if idx < len(hist) - 1:
-                session.input_history_idx += 1
-                self.value = hist[session.input_history_idx]
-            else:
-                # 已到最新，恢复草稿
-                session.input_history_idx = -1
-                self.value = getattr(app, '_input_draft', '')
-            self.cursor_position = len(self.value)
+        event.stop()
+        event.prevent_default()
+        self.value = session.last_input
+        self.cursor_position = len(self.value)
 
     def action_paste(self) -> None:
         try:
@@ -538,7 +514,6 @@ class RoundtableApp(App):
         self._image_buffers: dict = {}
         self._image_count:   int = 0
         self._stream_buffers: Dict[str, str] = {}
-        self._input_draft:   str = ""   # ↑ 键导航时保存的草稿
 
     # ── layout ────────────────────────────────────────────────────────────────
 
@@ -1029,11 +1004,8 @@ class RoundtableApp(App):
         if not session:
             return
 
-        # 记录到本 Tab 的输入历史，重置浏览索引
-        if not session.input_history or session.input_history[-1] != value:
-            session.input_history.append(value)
-        session.input_history_idx = -1
-        self._input_draft = ""
+        # 记录上一条输入（内存中，退出即清除）
+        session.last_input = value
 
         if session.mode == "quick":
             if value == "/compare":
