@@ -425,8 +425,8 @@ class RoundtableInput(Input):
 
     def _on_key(self, event: events.Key) -> None:
         """↑ 键恢复上一条发送的输入；Ctrl+⌫ 清空输入框。"""
-        # Ctrl+⌫ 清空：Mac 终端发 ctrl+h，也兼容 ctrl+delete
-        if event.key in ("ctrl+h", "ctrl+delete"):
+        # Ctrl+A 全选（清空输入框，等效于全选后删除）
+        if event.key == "ctrl+a":
             if self.value:
                 event.stop()
                 event.prevent_default()
