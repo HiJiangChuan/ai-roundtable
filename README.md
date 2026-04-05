@@ -56,7 +56,7 @@ ai-roundtable
 
 ---
 
-## Two Modes
+## Three Modes
 
 ### Rapid Fire (default)
 
@@ -84,6 +84,37 @@ You: What's the biggest risk in microservices architecture?
 | Any text | Ask all AIs in parallel |
 | `Ctrl+R` | Each AI critiques the others' last answers |
 | `Ctrl+T` | Upgrade this question to a Deep Dive session |
+
+---
+
+### Conductor (`Ctrl+G`)
+
+One AI leads the others. Claude (the conductor) breaks your question into complementary sub-tasks, assigns them to Gemini and Codex, then reads all results and synthesizes a final integrated answer.
+
+Best for: complex research questions, multi-angle analysis, problems that benefit from a structured division of labor.
+
+```
+You: What should I consider before switching my startup from monolith to microservices?
+
+🎼 CLAUDE (conductor) → Analysing question, assigning tasks...
+   📋 Task assignments:
+      🟢 GEMINI  → Research real-world case studies and failure patterns
+      🟡 CODEX   → Evaluate technical trade-offs and migration strategies
+
+🟢 GEMINI  → [streams response on case studies...]
+🟡 CODEX   → [streams response on technical trade-offs...]
+
+🎼 CLAUDE (synthesis) → Integrating both perspectives into a final answer...
+```
+
+The moderator panel (purple border) shows the task plan and the final synthesis. Each worker panel shows the sub-task it was assigned above its response.
+
+**Conductor config** (`~/.config/ai-roundtable/config.yml`):
+
+```yaml
+conductor:
+  default_conductor: "claude"  # which AI leads (must be in ais)
+```
 
 ---
 
@@ -116,6 +147,7 @@ Best for: complex decisions, architecture debates, exploring a problem space tho
 | `Esc` | Quit |
 | `/` | Focus input box |
 | `Ctrl+T` | Toggle mode (Rapid Fire ↔ Deep Dive) |
+| `Ctrl+G` | New Conductor tab |
 | `Ctrl+L` | Toggle layout (vertical ↔ horizontal panels) |
 | `Ctrl+R` | Peer review — AIs critique each other |
 | `Ctrl+Y` | View panel content full-screen (click a panel first) |
@@ -123,6 +155,8 @@ Best for: complex decisions, architecture debates, exploring a problem space tho
 | `Ctrl+W` | Close current tab |
 | `Ctrl+O` | Open session history |
 | `Ctrl+V` | Paste image into question |
+| `Ctrl+A` | Select all text in input box |
+| `↑` | Restore last submitted input |
 | `Ctrl+1`–`4` | Switch to tab 1–4 |
 
 ---
@@ -137,20 +171,23 @@ ais:
     cmd: "claude"
     prompt_flag: "-p"
     flags: ["--dangerously-skip-permissions"]
-    timeout: 60
+    timeout: 600   # Claude deep thinking can take up to 10 min
     # enabled: false  ← uncomment to disable this AI
 
   gemini:
     cmd: "gemini"
     prompt_flag: "-p"
     flags: ["--yolo"]
-    timeout: 90
+    timeout: 300
 
   codex:
     cmd: "codex"
     subcommand: "exec"
     flags: []
-    timeout: 60
+    timeout: 300
+
+conductor:
+  default_conductor: "claude"  # which AI leads in Conductor mode
 
 deep:
   full_rounds_kept: 3      # Full rounds kept in context window
@@ -180,8 +217,10 @@ AI Roundtable adapts automatically — with 2 AIs it runs pair discussions, with
 
 Every session is automatically saved as Markdown. Files are written to:
 
-- **With Obsidian**: `<vault>/ai-roundtable/Rapid Fire/YYYY-MM-DD/NNN-topic.md`
-- **Without Obsidian**: `~/Documents/ai-roundtable/Rapid Fire/YYYY-MM-DD/NNN-topic.md`
+- **With Obsidian**: `<vault>/ai-roundtable/<Mode>/YYYY-MM-DD/NNN-topic.md`
+- **Without Obsidian**: `~/Documents/ai-roundtable/<Mode>/YYYY-MM-DD/NNN-topic.md`
+
+Where `<Mode>` is `Rapid Fire`, `Conductor`, or `Deep Dive`.
 
 Each file includes YAML frontmatter (date, type, tags) and is formatted with Obsidian callout blocks, ready to view in your vault immediately.
 
@@ -207,18 +246,22 @@ ai-roundtable/
 │   ├── main.py             # Entry point, config/path resolution
 │   ├── tui.py              # Terminal UI (Textual)
 │   ├── quick.py            # Rapid Fire mode logic
+│   ├── conductor.py        # Conductor mode logic
 │   ├── orchestrator.py     # Deep Dive state machine
 │   ├── cli_caller.py       # AI CLI subprocess runner + streaming
 │   ├── context_manager.py  # 3-layer context compression
 │   ├── history.py          # Session persistence (Markdown + Obsidian)
 │   ├── prompt_loader.py    # Prompt template loader
 │   └── prompts/
-│       ├── guest_quick.md  # Rapid Fire prompt
-│       ├── guest.md        # Deep Dive guest prompt
-│       ├── opening.md      # Session opening (Round 0)
-│       ├── moderator.md    # Moderator synthesis prompt
-│       ├── compare.md      # Peer review prompt
-│       ├── compress.md     # Context compression prompt
+│       ├── guest_quick.md       # Rapid Fire prompt
+│       ├── conductor_plan.md    # Conductor: task planning
+│       ├── conductor_worker.md  # Conductor: worker task
+│       ├── conductor_synthesize.md  # Conductor: final synthesis
+│       ├── guest.md             # Deep Dive guest prompt
+│       ├── opening.md           # Session opening (Round 0)
+│       ├── moderator.md         # Moderator synthesis prompt
+│       ├── compare.md           # Peer review prompt
+│       ├── compress.md          # Context compression prompt
 │       └── solo_roundtable.md  # Single-AI roundtable prompt
 ├── config.yml              # Default config (source mode)
 ├── pyproject.toml
