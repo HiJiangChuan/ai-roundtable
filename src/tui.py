@@ -308,9 +308,11 @@ Tab:hover {
     border: none;
     padding: 0 1;
     scrollbar-size: 1 1;
+    scrollbar-size-horizontal: 0;
     scrollbar-color: #21262d;
     scrollbar-color-hover: #388bfd;
     scrollbar-background: transparent;
+    overflow-x: hidden;
 }
 
 .guest-log:focus {
@@ -323,6 +325,7 @@ Tab:hover {
     padding: 0 1;
     color: #6e7681;
     display: none;
+    overflow-x: hidden;
 }
 
 .stream-preview.--active {
@@ -370,8 +373,10 @@ Tab:hover {
     border: none;
     padding: 0 1;
     scrollbar-size: 1 1;
+    scrollbar-size-horizontal: 0;
     scrollbar-color: #21262d;
     scrollbar-background: transparent;
+    overflow-x: hidden;
 }
 
 #moderator-log:focus {
@@ -550,12 +555,12 @@ class RoundtableApp(App):
                     yield Static(f"{icon} {agent.upper()}",
                                  id=f"title-{agent}", classes="agent-title")
                     yield RichLog(id=f"log-{agent}", classes="guest-log",
-                                  wrap=True, highlight=False, markup=True)
+                                  wrap=True, highlight=False, markup=True, min_width=1)
                     yield Static("", id=f"stream-{agent}", classes="stream-preview")
 
         with Vertical(id="moderator-wrap"):
             yield Static("🎙 主持人", id="moderator-title")
-            yield RichLog(id="moderator-log", wrap=True, highlight=False, markup=True)
+            yield RichLog(id="moderator-log", wrap=True, highlight=False, markup=True, min_width=1)
 
         with Horizontal(id="input-row"):
             yield Static("", id="mode-label")
