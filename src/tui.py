@@ -308,11 +308,9 @@ Tab:hover {
     border: none;
     padding: 0 1;
     scrollbar-size: 1 1;
-    scrollbar-size-horizontal: 0;
     scrollbar-color: #21262d;
     scrollbar-color-hover: #388bfd;
     scrollbar-background: transparent;
-    overflow-x: hidden;
 }
 
 .guest-log:focus {
@@ -325,7 +323,6 @@ Tab:hover {
     padding: 0 1;
     color: #6e7681;
     display: none;
-    overflow-x: hidden;
 }
 
 .stream-preview.--active {
@@ -373,10 +370,8 @@ Tab:hover {
     border: none;
     padding: 0 1;
     scrollbar-size: 1 1;
-    scrollbar-size-horizontal: 0;
     scrollbar-color: #21262d;
     scrollbar-background: transparent;
-    overflow-x: hidden;
 }
 
 #moderator-log:focus {
