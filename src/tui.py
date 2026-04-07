@@ -238,6 +238,7 @@ CSS = """
 Screen {
     background: #0d1117;
     color: #e6edf3;
+    overflow: hidden;
 }
 
 Header {
