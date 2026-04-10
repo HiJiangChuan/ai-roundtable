@@ -3,8 +3,8 @@ CLI Caller - Executes CLI commands for each AI agent.
 
 Completion strategy (per AI):
   Claude  — waits for `type: result` JSON event (explicit done signal), then EOF
-  Codex   — waits for `task_complete` JSON event, then EOF
-  Gemini  — plain-text output, waits for process to exit naturally (EOF = done)
+  Gemini  — waits for `type: result` JSON event via --output-format stream-json
+  Codex   — waits for `turn.completed` JSON event, then EOF
 
 Timeout strategy (two layers):
   idle_timeout   — reset on any stdout/stderr output;
@@ -20,16 +20,14 @@ from pathlib import Path
 from typing import Callable, Dict, Any, Optional
 
 # Extra flags appended only for streaming calls.
-# Gemini is intentionally absent: it uses plain-text output, which is more
-# reliable than stream-json (tool-call events caused empty responses).
 STREAM_FLAGS: Dict[str, list] = {
     'claude': ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'],
+    'gemini': ['--output-format', 'stream-json'],
     'codex':  ['--json'],
 }
 
-# Agents whose stdout is JSONL (stream-json / --json).
-# Gemini is plain text — each stdout line is yielded directly as a content chunk.
-STREAM_JSON_AGENTS = {'claude', 'codex'}
+# All three agents now use JSONL streaming.
+STREAM_JSON_AGENTS = {'claude', 'gemini', 'codex'}
 
 # Absolute safety timeout (seconds). Kills any process that hasn't exited by then.
 SAFETY_TIMEOUT = 900  # 15 minutes
@@ -89,8 +87,8 @@ class CliCaller:
 
         Completion is driven by the AI's own protocol:
           - Claude: emits `type: result` then exits
-          - Codex:  emits `task_complete` then exits
-          - Gemini: exits when done (plain text, no special event needed)
+          - Gemini: emits `type: result` then exits (stream-json mode)
+          - Codex:  emits `turn.completed` then exits
 
         Resets idle timer on any stdout or stderr output.
         Fires on_idle when no output for idle_timeout seconds (notification only, no kill).
@@ -227,28 +225,18 @@ class CliCaller:
         full_text  = ""
         final_text = ""
 
-        if agent in STREAM_JSON_AGENTS:
-            # JSONL streaming: parse each line as a structured event
-            def on_stdout_line(raw: bytes):
-                nonlocal full_text, final_text
-                line = raw.decode('utf-8', errors='replace').strip()
-                if not line:
-                    return
-                chunk, is_final = self._parse_stream_line(agent, line)
-                if is_final:
-                    final_text = chunk
-                elif chunk and chunk != '\x00':
-                    full_text += chunk
-                    on_chunk(chunk)
-        else:
-            # Plain-text streaming (Gemini): each stdout line is content
-            def on_stdout_line(raw: bytes):
-                nonlocal full_text
-                line = strip_ansi(raw.decode('utf-8', errors='replace'))
-                # Keep newlines so markdown renders correctly
-                if line.strip():
-                    full_text += line
-                    on_chunk(line)
+        # All agents now use JSONL streaming
+        def on_stdout_line(raw: bytes):
+            nonlocal full_text, final_text
+            line = raw.decode('utf-8', errors='replace').strip()
+            if not line:
+                return
+            chunk, is_final = self._parse_stream_line(agent, line)
+            if is_final:
+                final_text = chunk
+            elif chunk and chunk != '\x00':
+                full_text += chunk
+                on_chunk(chunk)
 
         try:
             returncode, stderr_bytes, was_killed = await self._run_process(
@@ -282,7 +270,19 @@ class CliCaller:
 
     def _parse_stream_line(self, agent: str, line: str):
         """Parse one JSONL line. Returns (text, is_final).
-        Only called for STREAM_JSON_AGENTS (claude, codex).
+
+        Claude:
+          stream_event + text_delta → content chunk
+          type:result               → final (contains full text)
+
+        Gemini (stream-json, merged Oct 2025):
+          type:message role:assistant → content chunk
+          type:result                 → done signal (no text, use accumulated chunks)
+
+        Codex (exec --json):
+          item.completed agent_message → content chunk
+          turn.completed               → done signal (no text, use accumulated chunks)
+          turn.failed                  → done signal (error)
         """
         try:
             data = json.loads(line)
@@ -292,8 +292,7 @@ class CliCaller:
         if agent == 'claude':
             t = data.get('type', '')
             if t == 'system':
-                # system/init is Claude's earliest stdout signal (emitted before thinking).
-                # Return a heartbeat to reset last_activity without adding content.
+                # Earliest stdout signal — heartbeat to reset idle timer
                 return '\x00', False
             elif t == 'stream_event':
                 ev = data.get('event', {})
@@ -304,25 +303,31 @@ class CliCaller:
             elif t == 'result':
                 return data.get('result', ''), True
 
-        elif agent == 'codex':
-            msg_type = data.get('type') or data.get('msg', {}).get('type', '')
-
-            # exec subcommand format
-            if msg_type == 'item.completed':
-                item = data.get('item', {})
-                if item.get('type') == 'agent_message':
-                    return item.get('text', ''), True
-
-            # proto subcommand format (future-proof)
-            elif msg_type == 'task_complete':
+        elif agent == 'gemini':
+            t = data.get('type', '')
+            if t == 'init':
+                return '\x00', False  # heartbeat
+            elif t == 'message':
+                if data.get('role') == 'assistant':
+                    content = data.get('content', '')
+                    if content:
+                        return content, False
+            elif t == 'result':
+                # Completion signal; all content already streamed via message events
                 return '', True
 
-            elif msg_type == 'agent_message_delta':
-                return data.get('msg', {}).get('delta', ''), False
-
-            elif msg_type == 'agent_message':
-                msg_text = data.get('msg', {}).get('message', '')
-                if isinstance(msg_text, str) and msg_text:
-                    return msg_text, False
+        elif agent == 'codex':
+            t = data.get('type', '')
+            if t == 'item.completed':
+                item = data.get('item', {})
+                if item.get('type') == 'agent_message':
+                    return item.get('text', ''), False  # content chunk
+            elif t == 'turn.completed':
+                # Turn done; text already collected via item.completed events
+                return '', True
+            elif t == 'turn.failed':
+                return '', True
+            elif t == 'system':
+                return '\x00', False  # heartbeat
 
         return "", False
