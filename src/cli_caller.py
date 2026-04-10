@@ -54,7 +54,7 @@ class CliCaller:
     def _idle_timeout(self, agent: str) -> float:
         """Idle timeout: no stdout/stderr for this long → fire on_idle (no kill)."""
         cfg_timeout = self.ais.get(agent, {}).get('timeout', 300)
-        return min(60.0, cfg_timeout / 4)
+        return min(25.0, cfg_timeout / 4)
 
     def _build_command(self, agent: str, prompt: str):
         agent_cfg  = self.ais.get(agent, {})
@@ -256,6 +256,10 @@ class CliCaller:
                 t = data.get('type', '')
                 if t == 'tool_use':
                     tool_name = data.get('tool_name', 'tool')
+                    params    = data.get('parameters', {})
+                    query     = params.get('query', '') or params.get('command', '')
+                    hint      = f"🔍 {query}…\n" if query else f"🔍 {tool_name}…\n"
+                    on_chunk(hint)   # shown in panel; NOT added to full_text → history stays clean
                     if on_stderr:
                         on_stderr(f"🔍 {tool_name}…")
                 elif t == 'message' and data.get('role') == 'assistant':

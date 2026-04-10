@@ -321,7 +321,6 @@ Tab:hover {
 
 .stream-preview {
     height: auto;
-    max-height: 10;
     padding: 0 1;
     color: #6e7681;
     display: none;
@@ -329,6 +328,7 @@ Tab:hover {
 
 .stream-preview.--active {
     display: block;
+    height: 1fr;
 }
 
 .agent-wrap.claude .guest-log:focus { background: #0a1628; }
@@ -888,7 +888,7 @@ class RoundtableApp(App):
             self._stream_buffers[agent] = self._stream_buffers.get(agent, "") + chunk
             w = self.query_one(f"#stream-{agent}", Static)
             w.add_class("--active")
-            w.update(self._stream_buffers[agent])
+            w.update(self._stream_buffers[agent][-600:])
 
         elif event_type == "agent_response":
             agent   = kwargs.get("agent", "")
