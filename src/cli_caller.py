@@ -3,8 +3,8 @@ CLI Caller - Executes CLI commands for each AI agent.
 
 Completion strategy (per AI):
   Claude  — waits for `type: result` JSON event (explicit done signal), then EOF
-  Gemini  — plain-text output, each stdout line is a content chunk; EOF = done
-            (stream-json was tested but buffers the full response — no real streaming)
+  Gemini  — stream-json; tool_use events shown as progress; message events are content;
+            result event = done. Plain-text was real-time but silent during tool calls.
   Codex   — waits for `turn.completed` JSON event, then EOF
 
 Timeout strategy (two layers):
@@ -21,14 +21,14 @@ from pathlib import Path
 from typing import Callable, Dict, Any, Optional
 
 # Extra flags appended only for streaming calls.
-# Gemini is intentionally absent: stream-json buffers the full response before emitting,
-# so plain-text stdout gives true line-by-line streaming with far better UX.
 STREAM_FLAGS: Dict[str, list] = {
     'claude': ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'],
+    'gemini': ['--output-format', 'stream-json'],
     'codex':  ['--json'],
 }
 
-# Agents whose stdout is JSONL. Gemini uses plain-text streaming (each line = chunk).
+# Claude + Codex use standard JSONL parsing via _parse_stream_line.
+# Gemini uses its own stream-json branch (needs tool_use progress reporting).
 STREAM_JSON_AGENTS = {'claude', 'codex'}
 
 # Absolute safety timeout (seconds). Kills any process that hasn't exited by then.
@@ -228,7 +228,7 @@ class CliCaller:
         final_text = ""
 
         if agent in STREAM_JSON_AGENTS:
-            # JSONL streaming: parse each line as a structured event
+            # Claude / Codex: standard JSONL parsing
             def on_stdout_line(raw: bytes):
                 nonlocal full_text, final_text
                 line = raw.decode('utf-8', errors='replace').strip()
@@ -240,8 +240,34 @@ class CliCaller:
                 elif chunk and chunk != '\x00':
                     full_text += chunk
                     on_chunk(chunk)
+
+        elif agent == 'gemini':
+            # Gemini stream-json: show tool_use as progress, message as content.
+            # Non-JSON lines (e.g. "Loaded cached credentials.") are silently ignored.
+            def on_stdout_line(raw: bytes):
+                nonlocal full_text, final_text
+                line = raw.decode('utf-8', errors='replace').strip()
+                if not line:
+                    return
+                try:
+                    data = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    return  # ignore non-JSON startup noise
+                t = data.get('type', '')
+                if t == 'tool_use':
+                    tool_name = data.get('tool_name', 'tool')
+                    if on_stderr:
+                        on_stderr(f"🔍 {tool_name}…")
+                elif t == 'message' and data.get('role') == 'assistant':
+                    content = data.get('content', '')
+                    if content:
+                        full_text += content
+                        on_chunk(content)
+                elif t == 'result':
+                    final_text = full_text  # mark done; content already streamed
+
         else:
-            # Plain-text streaming (Gemini): each stdout line is content
+            # Plain-text fallback (unknown agents)
             def on_stdout_line(raw: bytes):
                 nonlocal full_text
                 line = strip_ansi(raw.decode('utf-8', errors='replace'))
