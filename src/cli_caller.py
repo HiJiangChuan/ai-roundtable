@@ -3,7 +3,8 @@ CLI Caller - Executes CLI commands for each AI agent.
 
 Completion strategy (per AI):
   Claude  — waits for `type: result` JSON event (explicit done signal), then EOF
-  Gemini  — waits for `type: result` JSON event via --output-format stream-json
+  Gemini  — plain-text output, each stdout line is a content chunk; EOF = done
+            (stream-json was tested but buffers the full response — no real streaming)
   Codex   — waits for `turn.completed` JSON event, then EOF
 
 Timeout strategy (two layers):
@@ -20,14 +21,15 @@ from pathlib import Path
 from typing import Callable, Dict, Any, Optional
 
 # Extra flags appended only for streaming calls.
+# Gemini is intentionally absent: stream-json buffers the full response before emitting,
+# so plain-text stdout gives true line-by-line streaming with far better UX.
 STREAM_FLAGS: Dict[str, list] = {
     'claude': ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'],
-    'gemini': ['--output-format', 'stream-json'],
     'codex':  ['--json'],
 }
 
-# All three agents now use JSONL streaming.
-STREAM_JSON_AGENTS = {'claude', 'gemini', 'codex'}
+# Agents whose stdout is JSONL. Gemini uses plain-text streaming (each line = chunk).
+STREAM_JSON_AGENTS = {'claude', 'codex'}
 
 # Absolute safety timeout (seconds). Kills any process that hasn't exited by then.
 SAFETY_TIMEOUT = 900  # 15 minutes
@@ -225,18 +227,27 @@ class CliCaller:
         full_text  = ""
         final_text = ""
 
-        # All agents now use JSONL streaming
-        def on_stdout_line(raw: bytes):
-            nonlocal full_text, final_text
-            line = raw.decode('utf-8', errors='replace').strip()
-            if not line:
-                return
-            chunk, is_final = self._parse_stream_line(agent, line)
-            if is_final:
-                final_text = chunk
-            elif chunk and chunk != '\x00':
-                full_text += chunk
-                on_chunk(chunk)
+        if agent in STREAM_JSON_AGENTS:
+            # JSONL streaming: parse each line as a structured event
+            def on_stdout_line(raw: bytes):
+                nonlocal full_text, final_text
+                line = raw.decode('utf-8', errors='replace').strip()
+                if not line:
+                    return
+                chunk, is_final = self._parse_stream_line(agent, line)
+                if is_final:
+                    final_text = chunk
+                elif chunk and chunk != '\x00':
+                    full_text += chunk
+                    on_chunk(chunk)
+        else:
+            # Plain-text streaming (Gemini): each stdout line is content
+            def on_stdout_line(raw: bytes):
+                nonlocal full_text
+                line = strip_ansi(raw.decode('utf-8', errors='replace'))
+                if line.strip():
+                    full_text += line
+                    on_chunk(line)
 
         try:
             returncode, stderr_bytes, was_killed = await self._run_process(
@@ -270,14 +281,11 @@ class CliCaller:
 
     def _parse_stream_line(self, agent: str, line: str):
         """Parse one JSONL line. Returns (text, is_final).
+        Only called for STREAM_JSON_AGENTS (claude, codex). Gemini uses plain-text.
 
         Claude:
           stream_event + text_delta → content chunk
           type:result               → final (contains full text)
-
-        Gemini (stream-json, merged Oct 2025):
-          type:message role:assistant → content chunk
-          type:result                 → done signal (no text, use accumulated chunks)
 
         Codex (exec --json):
           item.completed agent_message → content chunk
@@ -302,19 +310,6 @@ class CliCaller:
                         return delta.get('text', ''), False
             elif t == 'result':
                 return data.get('result', ''), True
-
-        elif agent == 'gemini':
-            t = data.get('type', '')
-            if t == 'init':
-                return '\x00', False  # heartbeat
-            elif t == 'message':
-                if data.get('role') == 'assistant':
-                    content = data.get('content', '')
-                    if content:
-                        return content, False
-            elif t == 'result':
-                # Completion signal; all content already streamed via message events
-                return '', True
 
         elif agent == 'codex':
             t = data.get('type', '')
