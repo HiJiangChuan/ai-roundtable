@@ -32,4 +32,4 @@ deep:
 history:
   obsidian_vault: "/Users/chuan/Workspace/notes"  # 留空则默认存至 ~/Documents/ai-roundtable/
 
-version: "0.0.55"
+version: "0.0.56"

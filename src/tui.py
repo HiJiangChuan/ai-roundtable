@@ -870,6 +870,11 @@ class RoundtableApp(App):
                 return
             agent = kwargs.get("agent", "")
             line  = kwargs.get("line", "")
+            # Filter out known CLI startup banners that are noise, not errors
+            _noise = ("yolo mode", "tool calls will be automatically approved",
+                      "dangerously skip", "all tool calls")
+            if any(n in line.lower() for n in _noise):
+                return
             if agent in self._agents:
                 w = self.query_one(f"#stream-{agent}", Static)
                 w.add_class("--active")
