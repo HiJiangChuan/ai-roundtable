@@ -1,0 +1,61 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC trusted publishing，无需 API token
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Read version from config.yml
+        id: version
+        run: |
+          pip install pyyaml -q
+          VERSION=$(python3 -c "import yaml; print(yaml.safe_load(open('config.yml'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Check if version already on PyPI
+        id: check
+        run: |
+          STATUS=$(python3 -c "
+          import urllib.request, json
+          try:
+              urllib.request.urlopen('https://pypi.org/pypi/ai-roundtable/${{ steps.version.outputs.version }}/json')
+              print('exists')
+          except:
+              print('new')
+          ")
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "PyPI status: $STATUS"
+
+      - name: Sync version to pyproject.toml
+        if: steps.check.outputs.status == 'new'
+        run: |
+          python3 -c "
+          import re
+          content = open('pyproject.toml').read()
+          content = re.sub(r'(?m)^version = \".*?\"', 'version = \"${{ steps.version.outputs.version }}\"', content, count=1)
+          open('pyproject.toml', 'w').write(content)
+          print('pyproject.toml updated to', '${{ steps.version.outputs.version }}')
+          "
+
+      - name: Build package
+        if: steps.check.outputs.status == 'new'
+        run: |
+          pip install build -q
+          python -m build
+
+      - name: Publish to PyPI
+        if: steps.check.outputs.status == 'new'
+        uses: pypa/gh-action-pypi-publish@release/v1
