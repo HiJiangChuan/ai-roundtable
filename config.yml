@@ -21,9 +21,6 @@ ais:
     icon: "🟡"
     timeout: 300     # 仅用于 idle 通知间隔，turn.completed 事件为完成信号
 
-conductor:
-  default_conductor: "claude"   # 担任指挥的 AI（需在 ais 中存在）
-
 deep:
   full_rounds_kept: 3
   compress_summary_max: 80

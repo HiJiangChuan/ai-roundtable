@@ -21,9 +21,6 @@ ais:
     icon: "🟡"
     timeout: 300     # 仅用于 idle 通知间隔，turn.completed 事件为完成信号
 
-conductor:
-  default_conductor: "claude"   # 担任指挥的 AI（需在 ais 中存在）
-
 deep:
   full_rounds_kept: 3
   compress_summary_max: 80
@@ -32,4 +29,4 @@ deep:
 history:
   obsidian_vault: ""  # 填入 Obsidian vault 路径，留空则存至 ~/Documents/ai-roundtable/
 
-version: "0.0.60"
+version: "0.0.61"
