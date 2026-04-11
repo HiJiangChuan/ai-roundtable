@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # OIDC trusted publishing，无需 API token
+      contents: read   # 私有仓库需要显式声明读取权限
 
     steps:
       - uses: actions/checkout@v4
