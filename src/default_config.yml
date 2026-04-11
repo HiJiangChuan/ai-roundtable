@@ -9,7 +9,7 @@ ais:
   gemini:
     cmd: "gemini"
     prompt_flag: "-p"
-    flags: ["--yolo"]
+    flags: ["--yolo", "--model", "gemini-2.5-flash"]  # gemini-2.5-pro 质量更高但更慢
     color: "green"
     icon: "🟢"
     timeout: 300     # 仅用于 idle 通知间隔，进程自然退出为完成信号
@@ -32,4 +32,4 @@ deep:
 history:
   obsidian_vault: ""  # 填入 Obsidian vault 路径，留空则存至 ~/Documents/ai-roundtable/
 
-version: "0.0.59"
+version: "0.0.60"

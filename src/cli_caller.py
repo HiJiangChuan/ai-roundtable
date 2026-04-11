@@ -27,9 +27,9 @@ STREAM_FLAGS: Dict[str, list] = {
     'codex':  ['--json'],
 }
 
-# Claude + Codex use standard JSONL parsing via _parse_stream_line.
-# Gemini uses its own stream-json branch (needs tool_use progress reporting).
-STREAM_JSON_AGENTS = {'claude', 'codex'}
+# Claude uses JSONL parsing via _parse_stream_line (token-level text_delta events).
+# Gemini and Codex have their own inline branches (tool progress + item.started support).
+STREAM_JSON_AGENTS = {'claude'}
 
 # Absolute safety timeout (seconds). Kills any process that hasn't exited by then.
 SAFETY_TIMEOUT = 900  # 15 minutes
@@ -228,7 +228,7 @@ class CliCaller:
         final_text = ""
 
         if agent in STREAM_JSON_AGENTS:
-            # Claude / Codex: standard JSONL parsing
+            # Claude: token-level text_delta streaming via _parse_stream_line
             def on_stdout_line(raw: bytes):
                 nonlocal full_text, final_text
                 line = raw.decode('utf-8', errors='replace').strip()
@@ -240,6 +240,41 @@ class CliCaller:
                 elif chunk and chunk != '\x00':
                     full_text += chunk
                     on_chunk(chunk)
+
+        elif agent == 'codex':
+            # Codex exec --json: item.started for progress display, item.completed for content.
+            # exec --json emits full item text at completion (no token-by-token streaming).
+            # True per-token streaming requires app-server JSON-RPC mode (future work).
+            def on_stdout_line(raw: bytes):
+                nonlocal full_text, final_text
+                line = raw.decode('utf-8', errors='replace').strip()
+                if not line:
+                    return
+                try:
+                    data = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    return
+                t = data.get('type', '')
+                if t == 'item.started':
+                    item      = data.get('item', {})
+                    item_type = item.get('type', '')
+                    if item_type == 'command_execution':
+                        cmd = item.get('command', '')[:60]
+                        if on_stderr:
+                            on_stderr(f"⚙️ {cmd}…" if cmd else "⚙️ 执行中…")
+                    elif item_type == 'web_search':
+                        query = item.get('query', '')[:60]
+                        if on_stderr:
+                            on_stderr(f"🔍 {query}…" if query else "🔍 搜索中…")
+                elif t == 'item.completed':
+                    item = data.get('item', {})
+                    if item.get('type') == 'agent_message':
+                        text = item.get('text', '')
+                        if text:
+                            full_text += text
+                            on_chunk(text)
+                elif t in ('turn.completed', 'turn.failed'):
+                    final_text = full_text
 
         elif agent == 'gemini':
             # Gemini stream-json: show tool_use as progress, message as content.
