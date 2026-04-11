@@ -29,4 +29,4 @@ deep:
 history:
   obsidian_vault: ""  # 填入 Obsidian vault 路径，留空则存至 ~/Documents/ai-roundtable/
 
-version: "0.0.61"
+version: "0.0.62"

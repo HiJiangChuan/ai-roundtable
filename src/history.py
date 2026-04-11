@@ -49,10 +49,9 @@ class History:
         self.base_dir        = base
         self.quick_dir       = base / 'Rapid Fire'
         self.deep_dir        = base / 'Deep Dive'
-        self.conductor_dir   = base / 'Conductor'
         self.attachments_dir = base / 'attachments'
 
-        for d in (self.quick_dir, self.deep_dir, self.conductor_dir, self.attachments_dir):
+        for d in (self.quick_dir, self.deep_dir, self.attachments_dir):
             d.mkdir(parents=True, exist_ok=True)
 
         self._sessions: Dict[str, Dict[str, Any]] = {}
@@ -158,12 +157,6 @@ class History:
             if meta:
                 sessions.append(meta)
 
-        # Conductor sessions
-        for md_file in sorted(self.conductor_dir.glob('????-??-??/*.md'), reverse=True):
-            meta = self._parse_conductor_meta(md_file)
-            if meta:
-                sessions.append(meta)
-
         # Deep sessions
         for md_file in sorted(self.deep_dir.glob('????-??-??/*.md'), reverse=True):
             meta = self._parse_deep_meta(md_file)
@@ -174,23 +167,6 @@ class History:
         sessions = [s for s in sessions if s.get('entries', 0) > 0]
         sessions.sort(key=lambda x: x.get('mtime', 0), reverse=True)
         return sessions
-
-    def _parse_conductor_meta(self, path: Path) -> Optional[Dict]:
-        try:
-            content = path.read_text(encoding='utf-8')
-            m = re.search(r'## \d{2}:\d{2} — (.+)', content)
-            title = m.group(1).strip() if m else '空会话'
-            count = len(re.findall(r'^## \d{2}:\d{2}', content, re.MULTILINE))
-            return {
-                'type':    'conductor',
-                'title':   title[:30],
-                'file':    path,
-                'date':    path.parent.name,
-                'entries': count,
-                'mtime':   path.stat().st_mtime,
-            }
-        except Exception:
-            return None
 
     def _parse_quick_meta(self, path: Path) -> Optional[Dict]:
         try:
@@ -236,68 +212,6 @@ class History:
             f"tags:\n  - ai-roundtable\n  - rapid-fire\n---\n",
             encoding='utf-8',
         )
-
-    # ── Conductor mode ────────────────────────────────────────────────────────
-
-    def new_conductor_session(self) -> Tuple[str, Path]:
-        """Create a new numbered conductor session file. Returns (session_id, path)."""
-        today = datetime.now().strftime('%Y-%m-%d')
-        day_dir = self.conductor_dir / today
-        day_dir.mkdir(parents=True, exist_ok=True)
-        max_num = 0
-        for f in day_dir.glob('*.md'):
-            stem = f.stem.split('-')[0]
-            if stem.isdigit():
-                max_num = max(max_num, int(stem))
-        num = max_num + 1
-        session_id = f"{num:03d}"
-        path = day_dir / f"{session_id}.md"
-        path.write_text(
-            f"---\ndate: {today}\nsession: {session_id}\ntype: conductor\n"
-            f"tags:\n  - ai-roundtable\n  - conductor\n---\n",
-            encoding='utf-8',
-        )
-        return session_id, path
-
-    def append_conductor_entry(self, entry: Dict[str, Any],
-                               path: Optional[Path] = None) -> None:
-        if path is None:
-            return
-        now       = datetime.now().strftime('%H:%M')
-        question  = entry.get('question', '')
-        conductor = entry.get('conductor', '')
-        assignments      = entry.get('assignments', {})
-        worker_responses = entry.get('worker_responses', {})
-        synthesis        = entry.get('synthesis', '')
-
-        short_q = question[:30].replace('\n', ' ').strip()
-        blocks = [f"\n## {now} — {short_q}\n", f"**Q:** {_md_image(question)}\n"]
-
-        # Plan
-        if assignments:
-            plan_lines = [f"**{k.upper()}**: {v}" for k, v in assignments.items()]
-            blocks.append(_callout('abstract', f'🎼 {conductor.upper()} 分工方案',
-                                   '\n'.join(plan_lines)))
-
-        # Worker responses
-        for agent in SPEAKING_ORDER:
-            if agent not in worker_responses or agent == conductor:
-                continue
-            kind, icon = AGENT_CALLOUT.get(agent, ('note', '⚪'))
-            blocks.append(_callout(kind, f"{icon} {agent.upper()}",
-                                   _md_image(worker_responses[agent])))
-
-        # Synthesis
-        if synthesis:
-            cond_kind, cond_icon = AGENT_CALLOUT.get(conductor, ('note', '🎼'))
-            blocks.append(_callout(cond_kind,
-                                   f"{cond_icon} {conductor.upper()} 综合",
-                                   _md_image(synthesis)))
-
-        blocks.append("---\n")
-
-        with open(path, 'a', encoding='utf-8') as f:
-            f.write('\n'.join(blocks))
 
     # ── Deep Dive mode ────────────────────────────────────────────────────────
 
