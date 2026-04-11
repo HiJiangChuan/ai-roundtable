@@ -31,18 +31,19 @@ def _get_prompts_dir() -> Path:
 def _get_config_path() -> Path:
     """
     Config 路径查找顺序：
-      1. ~/.config/ai-roundtable/config.yml  （用户安装后）
-      2. 项目根目录 config.yml               （源码开发）
+      1. 项目根目录 config.yml               （源码开发，优先）
+      2. ~/.config/ai-roundtable/config.yml  （用户安装后）
     首次安装时自动从包内默认配置复制到用户目录。
     """
-    user_cfg = _USER_CFG_DIR / 'config.yml'
-    if user_cfg.exists():
-        return user_cfg
-
-    # 源码模式
+    # 源码模式优先：若项目根目录存在 config.yml，直接使用（开发时修改立即生效）
     src_cfg = _SRC_ROOT / 'config.yml'
     if src_cfg.exists():
         return src_cfg
+
+    # pip 安装模式：使用用户配置目录
+    user_cfg = _USER_CFG_DIR / 'config.yml'
+    if user_cfg.exists():
+        return user_cfg
 
     # 首次安装：从包内默认配置复制
     default_cfg = _PKG_DIR / 'default_config.yml'
