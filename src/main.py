@@ -21,11 +21,21 @@ _USER_CFG_DIR = Path.home() / '.config' / 'ai-roundtable'
 
 
 def _get_prompts_dir() -> Path:
-    """Prompts 目录：优先包内，其次项目根。"""
+    """Prompts 目录：优先用户目录，首次运行时从包内复制默认文件。"""
+    user_prompts = _USER_CFG_DIR / 'prompts'
+    if user_prompts.exists():
+        return user_prompts
+    # First run: copy defaults to user dir
     pkg_prompts = _PKG_DIR / 'prompts'
-    if pkg_prompts.exists():
-        return pkg_prompts
-    return _SRC_ROOT / 'prompts'
+    src_prompts = _SRC_ROOT / 'prompts'
+    source = pkg_prompts if pkg_prompts.exists() else src_prompts
+    if source.exists():
+        user_prompts.mkdir(parents=True, exist_ok=True)
+        for f in source.glob('*.md'):
+            shutil.copy(f, user_prompts / f.name)
+        print(f"已创建 prompts 目录：{user_prompts}")
+        return user_prompts
+    return source
 
 
 def _get_config_path() -> Path:
@@ -77,9 +87,15 @@ def main() -> None:
     prompts_dir = _get_prompts_dir()
     check_prompts(prompts_dir)
     config = load_config()
+    user_cfg_path = _get_config_path()
 
     initial_mode = "deep" if args.deep else "quick"
-    app = RoundtableApp(prompts_dir.parent, config, initial_mode=initial_mode)
+    app = RoundtableApp(
+        prompts_dir.parent, config,
+        initial_mode=initial_mode,
+        user_cfg_path=user_cfg_path,
+        prompts_dir=prompts_dir,
+    )
     app.run()
 
 

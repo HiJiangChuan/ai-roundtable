@@ -39,6 +39,7 @@ from prompt_loader import PromptLoader
 from cli_caller import CliCaller
 from quick import QuickMode
 from history import History
+from settings import SettingsScreen
 
 
 # ── Tab Session ───────────────────────────────────────────────────────────────
@@ -484,15 +485,16 @@ class RoundtableApp(App):
     ENABLE_COMMAND_PALETTE = False
 
     BINDINGS = [
-        Binding("escape", "quit",            "退出"),
-        Binding("/",      "focus_input",    show=False),
-        Binding("ctrl+r", "compare",        "互评"),
-        Binding("ctrl+y", "copy_panel",     "查看/复制"),
-        Binding("ctrl+n", "new_tab",        "新建"),
-        Binding("ctrl+w", "close_tab",      "关闭"),
-        Binding("ctrl+o", "history",        "历史"),
-        Binding("ctrl+t", "toggle_mode",    "切换模式"),
-        Binding("ctrl+l", "toggle_layout",  "横竖"),
+        Binding("escape",     "quit",            "退出"),
+        Binding("/",          "focus_input",    show=False),
+        Binding("ctrl+r",     "compare",        "互评"),
+        Binding("ctrl+y",     "copy_panel",     "查看/复制"),
+        Binding("ctrl+n",     "new_tab",        "新建"),
+        Binding("ctrl+w",     "close_tab",      "关闭"),
+        Binding("ctrl+o",     "history",        "历史"),
+        Binding("ctrl+t",     "toggle_mode",    "切换模式"),
+        Binding("ctrl+l",     "toggle_layout",  "横竖"),
+        Binding("ctrl+comma", "show_settings",  "设置"),
         Binding("ctrl+1", "switch_tab_n('1')", show=False),
         Binding("ctrl+2", "switch_tab_n('2')", show=False),
         Binding("ctrl+3", "switch_tab_n('3')", show=False),
@@ -500,14 +502,19 @@ class RoundtableApp(App):
     ]
 
     def __init__(self, project_root: Path, config: Dict[str, Any],
-                 initial_mode: str = "quick", *args, **kwargs):
+                 initial_mode: str = "quick",
+                 user_cfg_path: Optional[Path] = None,
+                 prompts_dir: Optional[Path] = None,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.project_root = project_root
-        self.config       = config
+        self.project_root    = project_root
+        self.config          = config
+        self._user_cfg_path  = user_cfg_path or (
+            Path.home() / '.config' / 'ai-roundtable' / 'config.yml')
+        self._prompts_dir    = prompts_dir or (project_root / "prompts")
 
         self._agents        = _active_agents(config)
-        prompts_dir         = project_root / "prompts"
-        self._prompt_loader = PromptLoader(prompts_dir)
+        self._prompt_loader = PromptLoader(self._prompts_dir)
         timeout             = config.get("deep", {}).get("timeout_seconds", 60)
         self._cli_caller    = CliCaller(config, timeout=timeout)
         self._history       = History(config, project_root=project_root)
@@ -1081,6 +1088,25 @@ class RoundtableApp(App):
     def action_history(self) -> None:
         sessions = self._history.get_sessions_for_modal()
         self.push_screen(HistoryModal(sessions), self._on_history_selected)
+
+    def action_show_settings(self) -> None:
+        self.push_screen(
+            SettingsScreen(self.config, self._user_cfg_path, self._prompts_dir),
+            self._on_settings_closed,
+        )
+
+    def _on_settings_closed(self, result) -> None:
+        if result == "saved":
+            # Reload config from disk so in-memory state matches saved file
+            try:
+                import yaml
+                with open(self._user_cfg_path, 'r', encoding='utf-8') as f:
+                    self.config = yaml.safe_load(f)
+                self._agents     = _active_agents(self.config)
+                self._cli_caller = CliCaller(self.config,
+                    timeout=self.config.get("deep", {}).get("timeout_seconds", 60))
+            except Exception as e:
+                self.notify(f"重载配置失败: {e}", severity="warning", timeout=4)
 
     def _on_history_selected(self, result) -> None:
         if not result:
