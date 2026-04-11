@@ -47,8 +47,8 @@ class History:
             base = Path(os.path.expanduser('~/Documents/ai-roundtable'))
 
         self.base_dir        = base
-        self.quick_dir       = base / 'Rapid Fire'
-        self.deep_dir        = base / 'Deep Dive'
+        self.quick_dir       = base / 'Quick Round'
+        self.deep_dir        = base / 'Deep Round'
         self.attachments_dir = base / 'attachments'
 
         for d in (self.quick_dir, self.deep_dir, self.attachments_dir):
@@ -213,7 +213,7 @@ class History:
             encoding='utf-8',
         )
 
-    # ── Deep Dive mode ────────────────────────────────────────────────────────
+    # ── Deep Round mode ───────────────────────────────────────────────────────
 
     def new_session(self, topic: str) -> str:
         ts    = datetime.now().strftime('%Y%m%d_%H%M%S')

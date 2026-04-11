@@ -1,4 +1,4 @@
-你是 {{agent_name}}，正在参与一个 Rapid Fire 环节。
+你是 {{agent_name}}，正在参与一个 Quick Round 环节。
 
 {{context_history}}
 

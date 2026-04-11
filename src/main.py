@@ -81,7 +81,7 @@ def check_prompts(prompts_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='AI Roundtable')
-    parser.add_argument('--deep', action='store_true', help='直接进入深度讨论模式')
+    parser.add_argument('--deep', action='store_true', help='直接进入 Deep Round 模式')
     args = parser.parse_args()
 
     prompts_dir = _get_prompts_dir()

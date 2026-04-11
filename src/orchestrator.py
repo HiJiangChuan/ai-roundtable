@@ -194,7 +194,7 @@ class Orchestrator:
            state=self._state)
 
     async def init_from_quick(self, topic: str, quick_context: dict, cb: Callable) -> None:
-        """从快问升级到深度讨论，携带快问历史"""
+        """从 Quick Round 升级到 Deep Round，携带快问历史"""
         self._state = self.STATE_RUNNING
         self._topic = topic
         self.context_manager.set_topic(topic)
@@ -238,7 +238,7 @@ class Orchestrator:
         cb("moderator_output", moderator=moderator, round=0,
            parsed=self._last_moderator_parsed, raw=raw)
         self._state = self.STATE_WAITING
-        cb("status", message="快问已升级为深度讨论 · 输入「可」开始第1轮", state=self._state)
+        cb("status", message="Quick Round 已升级为 Deep Round · 输入「可」开始第1轮", state=self._state)
 
     async def handle_command(self, user_input: str, cb: Callable) -> None:
         """Handle user commands: 可/止/深入此节/@agent/free text."""
@@ -530,7 +530,7 @@ class Orchestrator:
             action_assignments, speeches, cb
         )
 
-        # Don't run moderator summary for deep dives, just show speeches
+        # Don't run moderator summary for deep rounds, just show speeches
         self._state = self.STATE_WAITING
         cb("status",
            message=f"深入完毕 · 输入「可」继续下一轮，或继续「深入此节」",

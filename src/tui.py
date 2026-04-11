@@ -1,7 +1,7 @@
 """
 AI Roundtable TUI — dual-mode terminal interface with tab sessions.
-快问（Quick）：默认，三个 AI 并行答题
-深度讨论（Deep）：主持人轮换 / 行动类型系统
+快问（Quick Round）：默认，三个 AI 并行答题
+深度讨论（Deep Round）：主持人轮换 / 行动类型系统
 """
 import asyncio
 import sys
@@ -145,7 +145,7 @@ class HistoryModal(ModalScreen):
             with Horizontal(id="modal-columns"):
                 with Vertical(classes="col-panel col-panel-left"):
                     hdr_cls = "col-header --active" if self._col == 0 else "col-header"
-                    yield Static("⚡ Rapid Fire", id="col-hdr-0", classes=hdr_cls)
+                    yield Static("⚡ Quick Round", id="col-hdr-0", classes=hdr_cls)
                     if self._quick:
                         for i, s in enumerate(self._quick[:15]):
                             hi = (self._col == 0 and i == 0)
@@ -158,7 +158,7 @@ class HistoryModal(ModalScreen):
 
                 with Vertical(classes="col-panel"):
                     hdr_cls = "col-header --active" if self._col == 1 else "col-header"
-                    yield Static("🔬 Deep Dive", id="col-hdr-1", classes=hdr_cls)
+                    yield Static("🔬 Deep Round", id="col-hdr-1", classes=hdr_cls)
                     if self._deep:
                         for i, s in enumerate(self._deep[:15]):
                             hi = (self._col == 1 and i == 0)
@@ -753,16 +753,16 @@ class RoundtableApp(App):
 
         if self._mode == "quick":
             mod_wrap.display = False
-            label.update(f"[dim]Rapid Fire · {tab_info} ›[/dim]")
+            label.update(f"[dim]Quick Round · {tab_info} ›[/dim]")
             inp.placeholder = "输入问题…  /compare 互评"
-            self.bind("ctrl+t", "toggle_mode", description="升级 Deep Dive")
+            self.bind("ctrl+t", "toggle_mode", description="升级 Deep Round")
         else:
             mod_wrap.display = True
             session = self._sessions.get(self._active_tab)
             rnd = session.orchestrator.round_num if session and session.orchestrator else 0
-            label.update(f"[dim]Deep Dive 轮{rnd + 1} · {tab_info} ›[/dim]")
+            label.update(f"[dim]Deep Round 轮{rnd + 1} · {tab_info} ›[/dim]")
             inp.placeholder = "可 · 止 · 深入此节 · @claude …"
-            self.bind("ctrl+t", "toggle_mode", description="切换至 Rapid Fire")
+            self.bind("ctrl+t", "toggle_mode", description="切换至 Quick Round")
 
         inp.disabled = False
 
@@ -881,7 +881,7 @@ class RoundtableApp(App):
             self._set_agent_title(agent)
 
             if role == "quick":
-                divider = "[dim]── Rapid Fire ──[/dim]"
+                divider = "[dim]── Quick Round ──[/dim]"
             elif role == "compare":
                 divider = "[dim]── 互评 ──[/dim]"
             else:
@@ -954,7 +954,7 @@ class RoundtableApp(App):
                     session = self._sessions.get(self._active_tab)
                     rnd = session.orchestrator.round_num if session and session.orchestrator else 0
                     self.query_one("#mode-label", Static).update(
-                        f"[dim]深度 轮{rnd + 1} ›[/dim]")
+                        f"[dim]Deep Round 轮{rnd + 1} ›[/dim]")
             elif state == "ended":
                 inp = self.query_one("#main-input", RoundtableInput)
                 inp.disabled = True
@@ -1055,12 +1055,12 @@ class RoundtableApp(App):
 
         if session.mode == "quick":
             if not session.quick_mode or not session.quick_mode.history_local:
-                self.notify("请先提问再升级到深度讨论", severity="warning", timeout=3)
+                self.notify("请先提问再升级到 Deep Round", severity="warning", timeout=3)
                 return
             last = session.quick_mode.get_context_for_deep()
             # Force new Deep tab
             new_id = self._create_tab(mode="deep",
-                                      title=last.get("question", "深度讨论")[:15])
+                                      title=last.get("question", "Deep Round")[:15])
             if new_id:
                 new_session = self._sessions[new_id]
                 self._run_upgrade_to_deep(last.get("question", ""), last,
@@ -1072,7 +1072,7 @@ class RoundtableApp(App):
     def action_compare(self) -> None:
         session = self._sessions.get(self._active_tab)
         if not session or session.mode != "quick":
-            self.notify("互评仅在 Rapid Fire 模式下可用", severity="warning", timeout=3)
+            self.notify("互评仅在 Quick Round 模式下可用", severity="warning", timeout=3)
             return
         if not session.quick_mode or not session.quick_mode.history_local:
             self.notify("请先提问，再发起互评", severity="warning", timeout=3)
@@ -1136,7 +1136,7 @@ class RoundtableApp(App):
                 self._create_tab(mode="quick", title=title,
                                  preload_entries=entries, quick_file=Path(fpath))
         elif s_type == 'deep-dive':
-            self.notify(f"Deep Dive 仅供查阅：{fpath}", timeout=4)
+            self.notify(f"Deep Round 仅供查阅：{fpath}", timeout=4)
 
     def action_switch_tab_n(self, n: str) -> None:
         ids = list(self._sessions.keys())

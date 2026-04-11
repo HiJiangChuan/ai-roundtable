@@ -7,7 +7,7 @@ A terminal UI that runs multiple AI assistants side-by-side and lets them debate
 ```
 🔵 CLAUDE                     🟢 GEMINI                     🟡 CODEX
 ──────────────────────────    ──────────────────────────    ──────────────────────────
-── Rapid Fire ──              ── Rapid Fire ──              ── Rapid Fire ──
+── Quick Round ──             ── Quick Round ──             ── Quick Round ──
 
 The core moat for LLMs is    Data flywheels matter more    Engineering execution is
 reasoning capability. A       than model quality — the      underrated. The teams that
@@ -58,7 +58,7 @@ ai-roundtable
 
 ## Two Modes
 
-### Rapid Fire (default)
+### Quick Round (default)
 
 All active AIs answer your question **in parallel**. Results appear as they stream in.
 
@@ -77,17 +77,17 @@ You: What's the biggest risk in microservices architecture?
                cross-service transaction becomes a distributed...
 ```
 
-**Rapid Fire commands:**
+**Quick Round commands:**
 
 | Input | Action |
 |-------|--------|
 | Any text | Ask all AIs in parallel |
 | `Ctrl+R` | Each AI critiques the others' last answers |
-| `Ctrl+T` | Upgrade this question to a Deep Dive session |
+| `Ctrl+T` | Upgrade this question to a Deep Round session |
 
 ---
 
-### Deep Dive (`ai-roundtable --deep`)
+### Deep Round (`ai-roundtable --deep`)
 
 A structured multi-round debate with a rotating moderator.
 
@@ -97,7 +97,7 @@ Each round: all AIs speak → moderator (rotating: Gemini → Codex → Claude �
 
 Best for: complex decisions, architecture debates, exploring a problem space thoroughly.
 
-**Deep Dive commands:**
+**Deep Round commands:**
 
 | Input | Action |
 |-------|--------|
@@ -115,7 +115,7 @@ Best for: complex decisions, architecture debates, exploring a problem space tho
 |----------|--------|
 | `Esc` | Quit |
 | `/` | Focus input box |
-| `Ctrl+T` | Toggle mode (Rapid Fire ↔ Deep Dive) |
+| `Ctrl+T` | Toggle mode (Quick Round ↔ Deep Round) |
 | `Ctrl+L` | Toggle layout (vertical ↔ horizontal panels) |
 | `Ctrl+R` | Peer review — AIs critique each other |
 | `Ctrl+Y` | View panel content full-screen (click a panel first) |
@@ -157,7 +157,7 @@ ais:
 deep:
   full_rounds_kept: 3      # Full rounds kept in context window
   compress_summary_max: 80  # Max chars per compressed round summary
-  timeout_seconds: 60       # Per-AI timeout for Deep Dive rounds
+  timeout_seconds: 60       # Per-AI timeout for Deep Round rounds
 
 history:
   obsidian_vault: ""        # Path to your Obsidian vault, e.g. ~/notes
@@ -185,7 +185,7 @@ Every session is automatically saved as Markdown. Files are written to:
 - **With Obsidian**: `<vault>/ai-roundtable/<Mode>/YYYY-MM-DD/NNN-topic.md`
 - **Without Obsidian**: `~/Documents/ai-roundtable/<Mode>/YYYY-MM-DD/NNN-topic.md`
 
-Where `<Mode>` is `Rapid Fire` or `Deep Dive`.
+Where `<Mode>` is `Quick Round` or `Deep Round`.
 
 Each file includes YAML frontmatter (date, type, tags) and is formatted with Obsidian callout blocks, ready to view in your vault immediately.
 
@@ -210,16 +210,16 @@ ai-roundtable/
 ├── src/
 │   ├── main.py             # Entry point, config/path resolution
 │   ├── tui.py              # Terminal UI (Textual)
-│   ├── quick.py            # Rapid Fire mode logic
-│   ├── orchestrator.py     # Deep Dive state machine
+│   ├── quick.py            # Quick Round mode logic
+│   ├── orchestrator.py     # Deep Round state machine
 │   ├── cli_caller.py       # AI CLI subprocess runner + streaming
 │   ├── context_manager.py  # 3-layer context compression
 │   ├── history.py          # Session persistence (Markdown + Obsidian)
 │   ├── prompt_loader.py    # Prompt template loader
 │   └── prompts/
-│       ├── guest_quick.md       # Rapid Fire prompt
+│       ├── guest_quick.md       # Quick Round prompt
 │       ├── compare.md           # Peer review prompt
-│       ├── guest.md             # Deep Dive guest prompt
+│       ├── guest.md             # Deep Round guest prompt
 │       ├── opening.md           # Session opening (Round 0)
 │       ├── moderator.md         # Moderator synthesis prompt
 │       ├── compress.md          # Context compression prompt
