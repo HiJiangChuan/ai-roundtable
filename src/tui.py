@@ -38,7 +38,6 @@ from orchestrator import Orchestrator
 from prompt_loader import PromptLoader
 from cli_caller import CliCaller
 from quick import QuickMode
-from conductor import ConductorMode
 from history import History
 
 
@@ -54,8 +53,6 @@ class TabSession:
     log_entries: List[Tuple] = field(default_factory=list)  # for replay on switch
     quick_file: Optional[Path] = None            # quick sessions only
     last_input: str = ""                         # ↑ 键恢复上一条输入
-    conductor_mode: Optional["ConductorMode"] = None
-    conductor_file: Optional[Path] = None
 
 
 # ── History Modal ─────────────────────────────────────────────────────────────
@@ -380,17 +377,6 @@ Tab:hover {
     background: #1a1200;
 }
 
-/* ── conductor mode: taller moderator panel ──────────────────── */
-
-#moderator-wrap.conductor-mode {
-    height: 16;
-    border-left: thick #a371f7;
-}
-
-#moderator-wrap.conductor-mode #moderator-title {
-    color: #a371f7;
-}
-
 /* ── input ────────────────────────────────────────────────────── */
 
 #input-row {
@@ -506,7 +492,6 @@ class RoundtableApp(App):
         Binding("ctrl+w", "close_tab",      "关闭"),
         Binding("ctrl+o", "history",        "历史"),
         Binding("ctrl+t", "toggle_mode",    "切换模式"),
-        Binding("ctrl+g", "conductor_tab",  "Conductor"),
         Binding("ctrl+l", "toggle_layout",  "横竖"),
         Binding("ctrl+1", "switch_tab_n('1')", show=False),
         Binding("ctrl+2", "switch_tab_n('2')", show=False),
@@ -601,18 +586,13 @@ class RoundtableApp(App):
                             history=self._history,
                             active_agents=self._agents) if mode == "deep" else None
 
-        cm = ConductorMode(self.config, self._cli_caller, self._prompt_loader,
-                           history=self._history,
-                           active_agents=self._agents) if mode == "conductor" else None
-
         session = TabSession(
-            tab_id         = tab_id,
-            mode           = mode,
-            title          = title,
-            quick_mode     = qm,
-            orchestrator   = orch,
-            conductor_mode = cm,
-            quick_file     = quick_file,
+            tab_id       = tab_id,
+            mode         = mode,
+            title        = title,
+            quick_mode   = qm,
+            orchestrator = orch,
+            quick_file   = quick_file,
         )
 
         # Preload last entries for historical sessions
@@ -705,10 +685,6 @@ class RoundtableApp(App):
             target_session.quick_file = new_path
             if target_session.quick_mode:
                 target_session.quick_mode.quick_file = new_path
-            if target_session.conductor_file == old_path:
-                target_session.conductor_file = new_path
-                if target_session.conductor_mode:
-                    target_session.conductor_mode.conductor_file = new_path
         except Exception:
             pass
 
@@ -732,7 +708,6 @@ class RoundtableApp(App):
         session = self._sessions.get(self._active_tab)
         if session and event_type in (
             "agent_response", "moderator_output", "side_response",
-            "conductor_plan_ready", "conductor_done",
         ):
             session.log_entries.append((event_type, dict(kwargs)))
 
@@ -771,22 +746,11 @@ class RoundtableApp(App):
 
         if self._mode == "quick":
             mod_wrap.display = False
-            mod_wrap.remove_class("conductor-mode")
             label.update(f"[dim]Rapid Fire · {tab_info} ›[/dim]")
             inp.placeholder = "输入问题…  /compare 互评"
             self.bind("ctrl+t", "toggle_mode", description="升级 Deep Dive")
-        elif self._mode == "conductor":
-            mod_wrap.display = True
-            mod_wrap.add_class("conductor-mode")
-            session = self._sessions.get(self._active_tab)
-            cm = session.conductor_mode if session else None
-            conductor = cm.conductor.upper() if cm else "AI"
-            label.update(f"[dim]🎼 Conductor · {tab_info} ›[/dim]")
-            inp.placeholder = f"输入问题，由 {conductor} 指挥协调…"
-            self.bind("ctrl+t", "toggle_mode", description="切换至 Rapid Fire")
         else:
             mod_wrap.display = True
-            mod_wrap.remove_class("conductor-mode")
             session = self._sessions.get(self._active_tab)
             rnd = session.orchestrator.round_num if session and session.orchestrator else 0
             label.update(f"[dim]Deep Dive 轮{rnd + 1} · {tab_info} ›[/dim]")
@@ -913,10 +877,6 @@ class RoundtableApp(App):
                 divider = "[dim]── Rapid Fire ──[/dim]"
             elif role == "compare":
                 divider = "[dim]── 互评 ──[/dim]"
-            elif role == "conductor_worker":
-                task = kwargs.get("task", "")
-                divider = (f"[dim]── {escape(task[:60])} ──[/dim]"
-                           if task else "[dim]── Conductor 任务 ──[/dim]")
             else:
                 divider = f"[dim]── 轮 {rnd} ──[/dim]"
 
@@ -1010,102 +970,6 @@ class RoundtableApp(App):
             inp.disabled = True
             inp.placeholder = "Ctrl+N 新建"
 
-        # ── Conductor events ──────────────────────────────────────────────────
-
-        elif event_type == "conductor_planning":
-            if _replay:
-                return
-            conductor = kwargs.get("conductor", "")
-            self.query_one("#moderator-title", Static).update(
-                f"🎼 {conductor.upper()}  [dim]制定方案...[/dim]")
-            self._mod_log().clear()
-            if conductor in self._agents:
-                self._set_agent_title(conductor, "🎼")
-
-        elif event_type == "conductor_plan_chunk":
-            if _replay:
-                return
-            chunk = kwargs.get("chunk", "")
-            session = self._sessions.get(self._active_tab)
-            ca = session.conductor_mode.conductor if session and session.conductor_mode else ""
-            if ca in self._agents:
-                self._stream_buffers[ca] = self._stream_buffers.get(ca, "") + chunk
-                w = self.query_one(f"#stream-{ca}", Static)
-                w.add_class("--active")
-                w.update(self._stream_buffers[ca][-300:])
-
-        elif event_type == "conductor_plan_ready":
-            conductor   = kwargs.get("conductor", "")
-            assignments = kwargs.get("assignments", {})
-            # 清除 plan streaming preview
-            if not _replay:
-                session = self._sessions.get(self._active_tab)
-                ca = session.conductor_mode.conductor if session and session.conductor_mode else ""
-                if ca in self._agents:
-                    self.query_one(f"#stream-{ca}", Static).remove_class("--active")
-                    self.query_one(f"#stream-{ca}", Static).update("")
-                    self._stream_buffers.pop(ca, None)
-            self.query_one("#moderator-title", Static).update(
-                f"🎼 {conductor.upper()}  [dim]等待团队...[/dim]")
-            mod = self._mod_log()
-            mod.write("[bold]📋 任务分配[/bold]")
-            for agent, task in assignments.items():
-                icon = _agent_icon(self.config, agent)
-                mod.write(f"  {icon} [bold]{escape(agent.upper())}[/bold]"
-                          f"  [dim]{escape(task[:80])}[/dim]")
-            mod.write("")
-
-        elif event_type == "conductor_plan_failed":
-            if not _replay:
-                self.notify(kwargs.get("message", "方案解析失败"),
-                            severity="warning", timeout=4)
-
-        elif event_type == "conductor_synthesizing":
-            if _replay:
-                return
-            conductor = kwargs.get("conductor", "")
-            self.query_one("#moderator-title", Static).update(
-                f"🎼 {conductor.upper()}  [dim]整合中...[/dim]")
-            if conductor in self._agents:
-                self._set_agent_title(conductor, "🎼")
-
-        elif event_type == "conductor_synthesis_chunk":
-            if _replay:
-                return
-            chunk = kwargs.get("chunk", "")
-            session = self._sessions.get(self._active_tab)
-            ca = session.conductor_mode.conductor if session and session.conductor_mode else ""
-            if ca in self._agents:
-                self._stream_buffers[ca] = self._stream_buffers.get(ca, "") + chunk
-                w = self.query_one(f"#stream-{ca}", Static)
-                w.add_class("--active")
-                w.update(self._stream_buffers[ca][-300:])
-
-        elif event_type == "conductor_done":
-            conductor = kwargs.get("conductor", "")
-            synthesis = kwargs.get("synthesis", "")
-            if not _replay:
-                session = self._sessions.get(self._active_tab)
-                ca = session.conductor_mode.conductor if session and session.conductor_mode else ""
-                if ca in self._agents:
-                    self.query_one(f"#stream-{ca}", Static).remove_class("--active")
-                    self.query_one(f"#stream-{ca}", Static).update("")
-                    self._stream_buffers.pop(ca, None)
-                    self._set_agent_title(ca)
-            self.query_one("#moderator-title", Static).update(
-                f"🎼 {conductor.upper()}  [dim]完成[/dim]")
-            mod = self._mod_log()
-            mod.write("[bold yellow]── 综合答案 ──[/bold yellow]")
-            mod.write(_FoldingMarkdown(synthesis))
-
-        elif event_type == "conductor_file_ready":
-            if not _replay:
-                cf = kwargs.get("conductor_file")
-                for session in self._sessions.values():
-                    if session.conductor_mode and session.conductor_mode.conductor_file == cf:
-                        session.conductor_file = cf
-                        break
-
         elif event_type == "error":
             if not _replay:
                 self.notify(kwargs.get("message", "未知错误"), severity="error", timeout=5)
@@ -1164,10 +1028,6 @@ class RoundtableApp(App):
                 self._run_compare()
             else:
                 self._run_quick(value)
-        elif session.mode == "conductor":
-            if not session.conductor_mode:
-                return
-            self._run_conductor(value)
         else:
             orch = session.orchestrator
             if not orch:
@@ -1211,13 +1071,6 @@ class RoundtableApp(App):
             self.notify("请先提问，再发起互评", severity="warning", timeout=3)
             return
         self._run_compare()
-
-    def action_conductor_tab(self) -> None:
-        """Create a new Conductor tab."""
-        if len(self._agents) < 2:
-            self.notify("Conductor 模式需要至少 2 个活跃 AI", severity="warning", timeout=3)
-            return
-        self._create_tab(mode="conductor")
 
     def action_new_tab(self) -> None:
         self._create_tab(mode="quick")
@@ -1332,19 +1185,6 @@ class RoundtableApp(App):
         self.notify("Press [b]esc[/b] to quit the app", title="Do you want to quit?")
 
     # ── Workers ───────────────────────────────────────────────────────────────
-
-    @work(exclusive=True)
-    async def _run_conductor(self, question: str) -> None:
-        self._callback("status", message="", state="running")
-        session = self._sessions.get(self._active_tab)
-        if not session or not session.conductor_mode:
-            return
-        try:
-            await session.conductor_mode.run(question, self._callback)
-        except Exception as e:
-            self._callback("error", message=f"Conductor 失败: {e}")
-        finally:
-            self._callback("status", message="", state="quick")
 
     @work(exclusive=True)
     async def _run_quick(self, question: str) -> None:
