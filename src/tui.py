@@ -494,7 +494,7 @@ class RoundtableApp(App):
         Binding("ctrl+o",     "history",        "历史"),
         Binding("ctrl+t",     "toggle_mode",    "切换模式"),
         Binding("ctrl+l",     "toggle_layout",  "横竖"),
-        Binding("ctrl+comma", "show_settings",  "设置"),
+        Binding("ctrl+p",     "show_settings",  "设置"),
         Binding("ctrl+1", "switch_tab_n('1')", show=False),
         Binding("ctrl+2", "switch_tab_n('2')", show=False),
         Binding("ctrl+3", "switch_tab_n('3')", show=False),
