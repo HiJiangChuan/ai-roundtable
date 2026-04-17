@@ -95,6 +95,26 @@ class ModelHelpScreen(ModalScreen):
             yield Static("关闭后在输入框填写模型名  ·  Esc / Enter", id="help-hint")
 
 
+def _read_cli_default_model(agent_name: str) -> str:
+    """从各 CLI 的本地配置文件读取默认模型名，读不到返回空字符串。"""
+    try:
+        if agent_name == "claude":
+            import json
+            p = Path.home() / ".claude" / "settings.json"
+            if p.exists():
+                return json.loads(p.read_text(encoding="utf-8")).get("model", "")
+        elif agent_name == "codex":
+            p = Path.home() / ".codex" / "config.toml"
+            if p.exists():
+                for line in p.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line.startswith("model") and "=" in line:
+                        return line.split("=", 1)[1].strip().strip("\"'")
+    except Exception:
+        pass
+    return ""
+
+
 def _pkg_prompts_source() -> Path:
     """Return the package/src prompts dir (for restoring defaults)."""
     pkg = _PKG_DIR / 'prompts'
@@ -465,7 +485,9 @@ class SettingsScreen(ModalScreen):
                     yield Static(f"{icon} {agent_name.upper()}", classes="ai-col-agent")
                     yield Static(status, classes="ai-col-status", id=f"ai-status-{agent_name}")
                     yield Switch(value=enabled, id=f"ai-enabled-{agent_name}", classes="ai-col-switch")
-                    yield Input(value=model, placeholder="↵ 查看说明",
+                    cli_default = _read_cli_default_model(agent_name)
+                    placeholder = f"{cli_default}  (CLI默认)" if cli_default else "↵ 查看说明"
+                    yield Input(value=model, placeholder=placeholder,
                                 classes="ai-col-model", id=f"ai-model-{agent_name}")
                     yield Input(value=timeout, placeholder="60",
                                 classes="ai-col-timeout", id=f"ai-timeout-{agent_name}")
