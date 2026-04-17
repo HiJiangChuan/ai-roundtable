@@ -463,6 +463,19 @@ class SettingsScreen(ModalScreen):
 
     # ── event handlers ───────────────────────────────────────────────────────
 
+    def on_key(self, event) -> None:
+        focused = self.focused
+        if event.key in ("up", "down"):
+            if isinstance(focused, TextArea):
+                return  # TextArea 自己处理上下光标
+            self.focus_next() if event.key == "down" else self.focus_previous()
+            event.stop()
+        elif event.key in ("left", "right"):
+            if isinstance(focused, (Input, TextArea)):
+                return  # 文本控件保留左右光标
+            self.focus_next() if event.key == "right" else self.focus_previous()
+            event.stop()
+
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "prompt-select":
             name = event.value
