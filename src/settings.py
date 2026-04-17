@@ -32,9 +32,11 @@ _MODEL_HELP = {
         "  claude --help | grep model"
     ),
     "gemini": (
-        "示例：gemini-2.5-flash · gemini-2.5-pro\n\n"
-        "查看说明：\n"
-        "  gemini --help | grep -A2 model"
+        "Gemini 的默认模型内置于 CLI 版本，不存本地配置。\n\n"
+        "查看当前版本默认模型：\n"
+        "  gemini --version\n\n"
+        "指定其他模型：\n"
+        "  gemini -m gemini-2.5-flash ..."
     ),
     "codex": (
         "示例：o4-mini · o3 · gpt-4o · gpt-4.1\n\n"
