@@ -104,46 +104,70 @@ class SettingsScreen(ModalScreen):
 
     /* ── AI 配置 tab ── */
 
-    .ai-section {
+    .ai-table {
         height: auto;
-        border: solid #21262d;
-        padding: 1 2;
-        margin-bottom: 1;
+        padding: 0 1;
     }
 
-    .ai-section-title {
+    .ai-table-header {
         height: 1;
-        color: #58a6ff;
-        margin-bottom: 1;
+        border-bottom: solid #21262d;
+        margin-bottom: 0;
     }
+
+    .ai-th {
+        color: #3d444d;
+        height: 1;
+        content-align: left middle;
+    }
+
+    .ai-th-agent  { width: 16; }
+    .ai-th-status { width: 5; }
+    .ai-th-enabled { width: 10; }
+    .ai-th-model  { width: 1fr; margin-right: 1; }
+    .ai-th-timeout { width: 10; }
 
     .ai-row {
         height: 3;
         align: left middle;
-        margin-bottom: 0;
     }
 
-    .ai-row-label {
+    .ai-col-agent {
         width: 16;
-        color: #6e7681;
+        color: #e6edf3;
         height: 1;
         content-align: left middle;
     }
 
-    .ai-status {
-        width: 4;
+    .ai-col-status {
+        width: 5;
         height: 1;
         content-align: left middle;
     }
 
-    .ai-switch-wrap {
+    .ai-col-enabled {
         width: 10;
         height: 3;
         align: left middle;
     }
 
-    .ai-input {
+    .ai-col-model {
         width: 1fr;
+        background: #161b22;
+        color: #e6edf3;
+        border: solid #30363d;
+        height: 1;
+        padding: 0 1;
+        margin-right: 1;
+    }
+
+    .ai-col-model:focus {
+        border: solid #388bfd;
+        background: #0d1f38;
+    }
+
+    .ai-col-timeout {
+        width: 10;
         background: #161b22;
         color: #e6edf3;
         border: solid #30363d;
@@ -151,7 +175,7 @@ class SettingsScreen(ModalScreen):
         padding: 0 1;
     }
 
-    .ai-input:focus {
+    .ai-col-timeout:focus {
         border: solid #388bfd;
         background: #0d1f38;
     }
@@ -356,32 +380,29 @@ class SettingsScreen(ModalScreen):
 
     def _compose_ai_tab(self) -> ComposeResult:
         ais = self._config.get('ais', {})
-        for agent_name, agent_cfg in ais.items():
-            installed = bool(shutil.which(agent_cfg.get('cmd', agent_name)))
-            status_icon = "✅" if installed else "❌"
-            enabled = agent_cfg.get('enabled', True)
-            model = _extract_model(agent_cfg.get('flags', []))
-            timeout = str(agent_cfg.get('timeout', 60))
-
-            with Vertical(classes="ai-section", id=f"ai-section-{agent_name}"):
-                yield Static(f"{agent_cfg.get('icon', '')} {agent_name.upper()}",
-                             classes="ai-section-title")
+        with Vertical(classes="ai-table"):
+            with Horizontal(classes="ai-table-header"):
+                yield Static("Agent",   classes="ai-th ai-th-agent")
+                yield Static("状态",    classes="ai-th ai-th-status")
+                yield Static("启用",    classes="ai-th ai-th-enabled")
+                yield Static("Model",   classes="ai-th ai-th-model")
+                yield Static("Timeout", classes="ai-th ai-th-timeout")
+            for agent_name, agent_cfg in ais.items():
+                installed = bool(shutil.which(agent_cfg.get('cmd', agent_name)))
+                enabled   = agent_cfg.get('enabled', True)
+                model     = _extract_model(agent_cfg.get('flags', []))
+                timeout   = str(agent_cfg.get('timeout', 60))
+                icon      = agent_cfg.get('icon', '')
+                status    = "✅" if installed else "❌"
                 with Horizontal(classes="ai-row"):
-                    yield Static("状态", classes="ai-row-label")
-                    yield Static(status_icon, classes="ai-status",
-                                 id=f"ai-status-{agent_name}")
-                with Horizontal(classes="ai-row"):
-                    yield Static("启用", classes="ai-row-label")
-                    with Horizontal(classes="ai-switch-wrap"):
+                    yield Static(f"{icon} {agent_name.upper()}", classes="ai-col-agent")
+                    yield Static(status, classes="ai-col-status", id=f"ai-status-{agent_name}")
+                    with Horizontal(classes="ai-col-enabled"):
                         yield Switch(value=enabled, id=f"ai-enabled-{agent_name}")
-                with Horizontal(classes="ai-row"):
-                    yield Static("model", classes="ai-row-label")
-                    yield Input(value=model, placeholder="(默认)",
-                                classes="ai-input", id=f"ai-model-{agent_name}")
-                with Horizontal(classes="ai-row"):
-                    yield Static("timeout (秒)", classes="ai-row-label")
+                    yield Input(value=model, placeholder="default",
+                                classes="ai-col-model", id=f"ai-model-{agent_name}")
                     yield Input(value=timeout, placeholder="60",
-                                classes="ai-input", id=f"ai-timeout-{agent_name}")
+                                classes="ai-col-timeout", id=f"ai-timeout-{agent_name}")
 
     def _compose_prompts_tab(self) -> ComposeResult:
         options = [(name, name) for name in REQUIRED_PROMPTS]
