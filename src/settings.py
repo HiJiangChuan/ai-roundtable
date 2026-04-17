@@ -32,11 +32,12 @@ _MODEL_HELP = {
         "  claude --help | grep model"
     ),
     "gemini": (
-        "Gemini 的默认模型内置于 CLI 版本，不存本地配置。\n\n"
-        "查看当前版本默认模型：\n"
-        "  gemini --version\n\n"
-        "指定其他模型：\n"
-        "  gemini -m gemini-2.5-flash ..."
+        "Gemini 的默认模型内置于 CLI，不存本地配置，\n"
+        "无法在不启动的情况下查询。\n\n"
+        "指定模型：\n"
+        "  gemini -m gemini-2.5-flash -p '...' \n\n"
+        "可用模型参考：\n"
+        "  ai.google.dev/gemini-api/docs/models"
     ),
     "codex": (
         "示例：o4-mini · o3 · gpt-4o · gpt-4.1\n\n"
