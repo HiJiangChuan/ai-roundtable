@@ -83,7 +83,7 @@ class QuickMode:
             f"{question[:300]}"
         )
         try:
-            raw = await self.cli_caller.call('claude', prompt)
+            raw = await self.cli_caller.call(self.agents[0], prompt)
             title = raw.strip().splitlines()[0]
             title = re.sub(r'[\\/:*?"<>|【】《》\s]', '', title)[:10]
             if title:
