@@ -13,7 +13,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Button, Input, Label, OptionList, Select, Static, Switch, TabbedContent, TabPane, TextArea
+    Button, Input, Label, Select, Static, Switch, TabbedContent, TabPane, TextArea
 )
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -22,77 +22,77 @@ from prompt_loader import REQUIRED_PROMPTS
 _PKG_DIR  = Path(__file__).parent
 _SRC_ROOT = _PKG_DIR.parent
 
-KNOWN_MODELS: dict = {
-    "claude": [
-        "claude-opus-4-6",
-        "claude-sonnet-4-6",
-        "claude-haiku-4-5-20251001",
-    ],
-    "gemini": [
-        "gemini-2.5-pro-preview-05-06",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-pro",
-        "gemini-1.5-flash",
-    ],
-    "codex": [
-        "o4-mini",
-        "o3",
-        "o3-mini",
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4o",
-    ],
+_MODEL_HELP = {
+    "claude": (
+        "别名（推荐）：opus · sonnet · haiku\n"
+        "完整名称：claude-opus-4-6\n"
+        "          claude-sonnet-4-6\n"
+        "          claude-haiku-4-5-20251001\n\n"
+        "查看说明：\n"
+        "  claude --help | grep model"
+    ),
+    "gemini": (
+        "示例：gemini-2.5-flash · gemini-2.5-pro\n\n"
+        "查看说明：\n"
+        "  gemini --help | grep -A2 model"
+    ),
+    "codex": (
+        "示例：o4-mini · o3 · gpt-4o · gpt-4.1\n\n"
+        "查看说明：\n"
+        "  codex --help | grep -A2 model"
+    ),
 }
 
 
-class ModelPickerScreen(ModalScreen):
-    """按 Enter 弹出的模型快速选择浮层。"""
+class ModelHelpScreen(ModalScreen):
+    """回车弹出的模型说明浮层。"""
 
-    BINDINGS = [Binding("escape", "dismiss", show=False)]
+    BINDINGS = [
+        Binding("escape", "dismiss", show=False),
+        Binding("enter",  "dismiss", show=False),
+    ]
 
     CSS = """
-    ModelPickerScreen {
+    ModelHelpScreen {
         align: center middle;
         background: #000000 55%;
     }
-    #model-picker {
-        width: 40;
+    #model-help {
+        width: 52;
         height: auto;
         background: #161b22;
         border: solid #30363d;
     }
-    #picker-title {
+    #help-title {
         height: 1;
         background: #21262d;
         color: #58a6ff;
         padding: 0 2;
         border-bottom: solid #30363d;
     }
-    #model-list {
-        background: #161b22;
-        border: none;
+    #help-body {
+        padding: 1 2;
+        color: #c9d1d9;
         height: auto;
-        padding: 0;
+    }
+    #help-hint {
+        height: 1;
+        color: #3d444d;
+        padding: 0 2;
+        border-top: solid #21262d;
     }
     """
 
-    def __init__(self, agent: str, models: list):
+    def __init__(self, agent: str):
         super().__init__()
-        self._agent  = agent
-        self._models = models
+        self._agent = agent
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="model-picker"):
-            yield Static(f"{self._agent.upper()}  · 选择模型  (Esc 取消)",
-                         id="picker-title")
-            yield OptionList(*self._models, id="model-list")
-
-    def on_mount(self) -> None:
-        self.query_one("#model-list", OptionList).focus()
-
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        self.dismiss(str(event.option.prompt))
+        body = _MODEL_HELP.get(self._agent, "请参考对应 CLI 的 --help 文档")
+        with Vertical(id="model-help"):
+            yield Static(f"{self._agent.upper()}  ·  如何指定模型", id="help-title")
+            yield Static(body, id="help-body")
+            yield Static("关闭后在输入框填写模型名  ·  Esc / Enter", id="help-hint")
 
 
 def _pkg_prompts_source() -> Path:
@@ -234,15 +234,6 @@ class SettingsScreen(ModalScreen):
         background: #0d1f38;
     }
 
-    .ai-col-model.-read-only {
-        color: #8b949e;
-    }
-
-    .ai-col-model.-read-only:focus {
-        color: #e6edf3;
-        border: solid #388bfd;
-        background: #0d1f38;
-    }
 
     .ai-col-timeout {
         width: 10;
@@ -474,8 +465,7 @@ class SettingsScreen(ModalScreen):
                     yield Static(f"{icon} {agent_name.upper()}", classes="ai-col-agent")
                     yield Static(status, classes="ai-col-status", id=f"ai-status-{agent_name}")
                     yield Switch(value=enabled, id=f"ai-enabled-{agent_name}", classes="ai-col-switch")
-                    yield Input(value=model, placeholder="↵ 选择",
-                                read_only=True,
+                    yield Input(value=model, placeholder="↵ 查看说明",
                                 classes="ai-col-model", id=f"ai-model-{agent_name}")
                     yield Input(value=timeout, placeholder="60",
                                 classes="ai-col-timeout", id=f"ai-timeout-{agent_name}")
@@ -554,21 +544,14 @@ class SettingsScreen(ModalScreen):
             self.focus_next() if event.key == "down" else self.focus_previous()
             event.stop()
         elif event.key in ("left", "right"):
-            is_editable_text = isinstance(focused, (Input, TextArea)) and not getattr(focused, 'read_only', False)
-            if is_editable_text:
+            if isinstance(focused, (Input, TextArea)):
                 return
             self.focus_next() if event.key == "right" else self.focus_previous()
             event.stop()
         elif event.key == "enter":
             if isinstance(focused, Input) and focused.id and focused.id.startswith("ai-model-"):
                 agent_name = focused.id[len("ai-model-"):]
-                models = KNOWN_MODELS.get(agent_name, [])
-                if models:
-                    inp = focused
-                    def _apply(model) -> None:
-                        if model:
-                            inp.value = model
-                    self.app.push_screen(ModelPickerScreen(agent_name, models), _apply)
+                self.app.push_screen(ModelHelpScreen(agent_name))
                 event.stop()
 
     def on_select_changed(self, event: Select.Changed) -> None:
