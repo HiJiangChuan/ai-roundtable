@@ -234,6 +234,16 @@ class SettingsScreen(ModalScreen):
         background: #0d1f38;
     }
 
+    .ai-col-model.-read-only {
+        color: #8b949e;
+    }
+
+    .ai-col-model.-read-only:focus {
+        color: #e6edf3;
+        border: solid #388bfd;
+        background: #0d1f38;
+    }
+
     .ai-col-timeout {
         width: 10;
         background: #161b22;
@@ -464,7 +474,8 @@ class SettingsScreen(ModalScreen):
                     yield Static(f"{icon} {agent_name.upper()}", classes="ai-col-agent")
                     yield Static(status, classes="ai-col-status", id=f"ai-status-{agent_name}")
                     yield Switch(value=enabled, id=f"ai-enabled-{agent_name}", classes="ai-col-switch")
-                    yield Input(value=model, placeholder="default",
+                    yield Input(value=model, placeholder="↵ 选择",
+                                read_only=True,
                                 classes="ai-col-model", id=f"ai-model-{agent_name}")
                     yield Input(value=timeout, placeholder="60",
                                 classes="ai-col-timeout", id=f"ai-timeout-{agent_name}")
@@ -539,14 +550,26 @@ class SettingsScreen(ModalScreen):
         focused = self.focused
         if event.key in ("up", "down"):
             if isinstance(focused, TextArea):
-                return  # TextArea 自己处理上下光标
+                return
             self.focus_next() if event.key == "down" else self.focus_previous()
             event.stop()
         elif event.key in ("left", "right"):
-            if isinstance(focused, (Input, TextArea)):
-                return  # 文本控件保留左右光标
+            is_editable_text = isinstance(focused, (Input, TextArea)) and not getattr(focused, 'read_only', False)
+            if is_editable_text:
+                return
             self.focus_next() if event.key == "right" else self.focus_previous()
             event.stop()
+        elif event.key == "enter":
+            if isinstance(focused, Input) and focused.id and focused.id.startswith("ai-model-"):
+                agent_name = focused.id[len("ai-model-"):]
+                models = KNOWN_MODELS.get(agent_name, [])
+                if models:
+                    inp = focused
+                    def _apply(model) -> None:
+                        if model:
+                            inp.value = model
+                    self.app.push_screen(ModelPickerScreen(agent_name, models), _apply)
+                event.stop()
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "prompt-select":
@@ -555,17 +578,6 @@ class SettingsScreen(ModalScreen):
                 self._current_prompt = str(name)
                 content = self._load_prompt_content(self._current_prompt)
                 self.query_one("#prompt-textarea", TextArea).load_text(content)
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        inp = event.input
-        if inp.id and inp.id.startswith("ai-model-"):
-            agent_name = inp.id[len("ai-model-"):]
-            models = KNOWN_MODELS.get(agent_name, [])
-            if models:
-                def _apply(model) -> None:
-                    if model:
-                        inp.value = model
-                self.app.push_screen(ModelPickerScreen(agent_name, models), _apply)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "storage-vault":
