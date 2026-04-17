@@ -555,7 +555,7 @@ class SettingsScreen(ModalScreen):
             agent_name = inp.id[len("ai-model-"):]
             models = KNOWN_MODELS.get(agent_name, [])
             if models:
-                def _apply(model: str | None) -> None:
+                def _apply(model) -> None:
                     if model:
                         inp.value = model
                 self.app.push_screen(ModelPickerScreen(agent_name, models), _apply)
