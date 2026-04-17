@@ -13,7 +13,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Button, Input, Label, Select, Static, Switch, TabbedContent, TabPane, TextArea
+    Button, Input, Label, Select, Static, TabbedContent, TabPane, TextArea
 )
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -79,47 +79,34 @@ class SettingsScreen(ModalScreen):
 
     /* ── AI 配置 tab ── */
 
-    .ai-table {
+    .ai-agents-row {
         height: auto;
-        padding: 0 1;
-    }
-
-    .ai-table-header {
-        height: 1;
-        border-bottom: solid #21262d;
-        margin-bottom: 0;
-    }
-
-    .ai-th {
-        color: #3d444d;
-        height: 1;
-        content-align: left middle;
-    }
-
-    .ai-th-agent  { width: 20; }
-    .ai-th-status { width: 6; }
-    .ai-th-enabled { width: 10; }
-
-    .ai-row {
-        height: 3;
+        padding: 2 1;
         align: left middle;
     }
 
-    .ai-col-agent {
-        width: 20;
+    .ai-chip {
+        min-width: 16;
+        height: 3;
+        margin: 0 1 0 0;
+        background: #161b22;
+        border: solid #30363d;
+        color: #6e7681;
+    }
+
+    .ai-chip:focus {
+        border: solid #388bfd;
+    }
+
+    .ai-chip-on {
+        background: #0d1f38;
         color: #e6edf3;
-        height: 1;
-        content-align: left middle;
+        border: solid #1f6feb;
     }
 
-    .ai-col-status {
-        width: 6;
-        height: 1;
-        content-align: left middle;
-    }
-
-    .ai-col-switch {
-        width: 10;
+    .ai-chip-missing {
+        color: #3d444d;
+        border: dashed #21262d;
     }
 
     /* ── Prompts tab ── */
@@ -322,20 +309,20 @@ class SettingsScreen(ModalScreen):
 
     def _compose_ai_tab(self) -> ComposeResult:
         ais = self._config.get('ais', {})
-        with Vertical(classes="ai-table"):
-            with Horizontal(classes="ai-table-header"):
-                yield Static("Agent", classes="ai-th ai-th-agent")
-                yield Static("状态",  classes="ai-th ai-th-status")
-                yield Static("启用",  classes="ai-th ai-th-enabled")
+        with Horizontal(classes="ai-agents-row"):
             for agent_name, agent_cfg in ais.items():
                 installed = bool(shutil.which(agent_cfg.get('cmd', agent_name)))
                 enabled   = agent_cfg.get('enabled', True)
                 icon      = agent_cfg.get('icon', '')
-                status    = "✅" if installed else "❌"
-                with Horizontal(classes="ai-row"):
-                    yield Static(f"{icon} {agent_name.upper()}", classes="ai-col-agent")
-                    yield Static(status, classes="ai-col-status", id=f"ai-status-{agent_name}")
-                    yield Switch(value=enabled, id=f"ai-enabled-{agent_name}", classes="ai-col-switch")
+                label = f"{icon} {agent_name.upper()}"
+                if not installed:
+                    label += "  ✗"
+                classes = "ai-chip"
+                if enabled and installed:
+                    classes += " ai-chip-on"
+                elif not installed:
+                    classes += " ai-chip-missing"
+                yield Button(label, id=f"ai-chip-{agent_name}", classes=classes)
 
     def _compose_prompts_tab(self) -> ComposeResult:
         options = [(name, name) for name in REQUIRED_PROMPTS]
@@ -432,6 +419,21 @@ class SettingsScreen(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
 
+        if btn_id and btn_id.startswith("ai-chip-"):
+            agent_name = btn_id[len("ai-chip-"):]
+            ais = self._config.get('ais', {})
+            if agent_name in ais:
+                installed = bool(shutil.which(ais[agent_name].get('cmd', agent_name)))
+                if installed:
+                    enabled = not ais[agent_name].get('enabled', True)
+                    ais[agent_name]['enabled'] = enabled
+                    btn = event.button
+                    if enabled:
+                        btn.add_class("ai-chip-on")
+                    else:
+                        btn.remove_class("ai-chip-on")
+            return
+
         if btn_id == "btn-cancel":
             self.dismiss(None)
 
@@ -477,14 +479,7 @@ class SettingsScreen(ModalScreen):
         """Collect all widget values, update config dict, write to YAML."""
         config = self._config
 
-        # ── AI 配置 ──
-        ais = config.get('ais', {})
-        for agent_name in ais:
-            try:
-                enabled = self.query_one(f"#ai-enabled-{agent_name}", Switch).value
-            except Exception:
-                continue
-            ais[agent_name]['enabled'] = enabled
+        # AI 启用状态已在 on_button_pressed 中实时写入 self._config
 
         # ── 存储 ──
         vault_val = self.query_one("#storage-vault", Input).value.strip()
