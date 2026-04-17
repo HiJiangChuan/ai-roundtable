@@ -13,7 +13,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Button, Input, Label, Select, Static, Switch, TabbedContent, TabPane, TextArea
+    Button, Input, Label, OptionList, Select, Static, Switch, TabbedContent, TabPane, TextArea
 )
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -21,6 +21,71 @@ from prompt_loader import REQUIRED_PROMPTS
 
 _PKG_DIR  = Path(__file__).parent
 _SRC_ROOT = _PKG_DIR.parent
+
+KNOWN_MODELS: dict = {
+    "claude": [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+    ],
+    "gemini": [
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+    ],
+    "codex": [],
+}
+
+
+class ModelPickerScreen(ModalScreen):
+    """按 Enter 弹出的模型快速选择浮层。"""
+
+    BINDINGS = [Binding("escape", "dismiss", show=False)]
+
+    CSS = """
+    ModelPickerScreen {
+        align: center middle;
+        background: #000000 55%;
+    }
+    #model-picker {
+        width: 40;
+        height: auto;
+        background: #161b22;
+        border: solid #30363d;
+    }
+    #picker-title {
+        height: 1;
+        background: #21262d;
+        color: #58a6ff;
+        padding: 0 2;
+        border-bottom: solid #30363d;
+    }
+    #model-list {
+        background: #161b22;
+        border: none;
+        height: auto;
+        padding: 0;
+    }
+    """
+
+    def __init__(self, agent: str, models: list):
+        super().__init__()
+        self._agent  = agent
+        self._models = models
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="model-picker"):
+            yield Static(f"{self._agent.upper()}  · 选择模型  (Esc 取消)",
+                         id="picker-title")
+            yield OptionList(*self._models, id="model-list")
+
+    def on_mount(self) -> None:
+        self.query_one("#model-list", OptionList).focus()
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(str(event.option.prompt))
 
 
 def _pkg_prompts_source() -> Path:
@@ -483,6 +548,17 @@ class SettingsScreen(ModalScreen):
                 self._current_prompt = str(name)
                 content = self._load_prompt_content(self._current_prompt)
                 self.query_one("#prompt-textarea", TextArea).load_text(content)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        inp = event.input
+        if inp.id and inp.id.startswith("ai-model-"):
+            agent_name = inp.id[len("ai-model-"):]
+            models = KNOWN_MODELS.get(agent_name, [])
+            if models:
+                def _apply(model: str | None) -> None:
+                    if model:
+                        inp.value = model
+                self.app.push_screen(ModelPickerScreen(agent_name, models), _apply)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "storage-vault":
