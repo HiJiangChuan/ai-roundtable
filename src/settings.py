@@ -145,10 +145,8 @@ class SettingsScreen(ModalScreen):
         content-align: left middle;
     }
 
-    .ai-col-enabled {
+    .ai-col-switch {
         width: 10;
-        height: 3;
-        align: left middle;
     }
 
     .ai-col-model {
@@ -156,8 +154,6 @@ class SettingsScreen(ModalScreen):
         background: #161b22;
         color: #e6edf3;
         border: solid #30363d;
-        height: 1;
-        padding: 0 1;
         margin-right: 1;
     }
 
@@ -171,8 +167,6 @@ class SettingsScreen(ModalScreen):
         background: #161b22;
         color: #e6edf3;
         border: solid #30363d;
-        height: 1;
-        padding: 0 1;
     }
 
     .ai-col-timeout:focus {
@@ -397,8 +391,7 @@ class SettingsScreen(ModalScreen):
                 with Horizontal(classes="ai-row"):
                     yield Static(f"{icon} {agent_name.upper()}", classes="ai-col-agent")
                     yield Static(status, classes="ai-col-status", id=f"ai-status-{agent_name}")
-                    with Horizontal(classes="ai-col-enabled"):
-                        yield Switch(value=enabled, id=f"ai-enabled-{agent_name}")
+                    yield Switch(value=enabled, id=f"ai-enabled-{agent_name}", classes="ai-col-switch")
                     yield Input(value=model, placeholder="default",
                                 classes="ai-col-model", id=f"ai-model-{agent_name}")
                     yield Input(value=timeout, placeholder="60",
