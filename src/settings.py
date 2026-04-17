@@ -35,7 +35,14 @@ KNOWN_MODELS: dict = {
         "gemini-1.5-pro",
         "gemini-1.5-flash",
     ],
-    "codex": [],
+    "codex": [
+        "o4-mini",
+        "o3",
+        "o3-mini",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4o",
+    ],
 }
 
 
