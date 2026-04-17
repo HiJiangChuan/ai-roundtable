@@ -22,102 +22,6 @@ from prompt_loader import REQUIRED_PROMPTS
 _PKG_DIR  = Path(__file__).parent
 _SRC_ROOT = _PKG_DIR.parent
 
-_MODEL_HELP = {
-    "claude": (
-        "别名（推荐）：opus · sonnet · haiku\n"
-        "完整名称：claude-opus-4-6\n"
-        "          claude-sonnet-4-6\n"
-        "          claude-haiku-4-5-20251001\n\n"
-        "查看说明：\n"
-        "  claude --help | grep model"
-    ),
-    "gemini": (
-        "Gemini 的默认模型内置于 CLI，不存本地配置，\n"
-        "无法在不启动的情况下查询。\n\n"
-        "指定模型：\n"
-        "  gemini -m gemini-2.5-flash -p '...' \n\n"
-        "可用模型参考：\n"
-        "  ai.google.dev/gemini-api/docs/models"
-    ),
-    "codex": (
-        "示例：o4-mini · o3 · gpt-4o · gpt-4.1\n\n"
-        "查看说明：\n"
-        "  codex --help | grep -A2 model"
-    ),
-}
-
-
-class ModelHelpScreen(ModalScreen):
-    """回车弹出的模型说明浮层。"""
-
-    BINDINGS = [
-        Binding("escape", "dismiss", show=False),
-        Binding("enter",  "dismiss", show=False),
-    ]
-
-    CSS = """
-    ModelHelpScreen {
-        align: center middle;
-        background: #000000 55%;
-    }
-    #model-help {
-        width: 52;
-        height: auto;
-        background: #161b22;
-        border: solid #30363d;
-    }
-    #help-title {
-        height: 1;
-        background: #21262d;
-        color: #58a6ff;
-        padding: 0 2;
-        border-bottom: solid #30363d;
-    }
-    #help-body {
-        padding: 1 2;
-        color: #c9d1d9;
-        height: auto;
-    }
-    #help-hint {
-        height: 1;
-        color: #3d444d;
-        padding: 0 2;
-        border-top: solid #21262d;
-    }
-    """
-
-    def __init__(self, agent: str):
-        super().__init__()
-        self._agent = agent
-
-    def compose(self) -> ComposeResult:
-        body = _MODEL_HELP.get(self._agent, "请参考对应 CLI 的 --help 文档")
-        with Vertical(id="model-help"):
-            yield Static(f"{self._agent.upper()}  ·  如何指定模型", id="help-title")
-            yield Static(body, id="help-body")
-            yield Static("关闭后在输入框填写模型名  ·  Esc / Enter", id="help-hint")
-
-
-def _read_cli_default_model(agent_name: str) -> str:
-    """从各 CLI 的本地配置文件读取默认模型名，读不到返回空字符串。"""
-    try:
-        if agent_name == "claude":
-            import json
-            p = Path.home() / ".claude" / "settings.json"
-            if p.exists():
-                return json.loads(p.read_text(encoding="utf-8")).get("model", "")
-        elif agent_name == "codex":
-            p = Path.home() / ".codex" / "config.toml"
-            if p.exists():
-                for line in p.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if line.startswith("model") and "=" in line:
-                        return line.split("=", 1)[1].strip().strip("\"'")
-    except Exception:
-        pass
-    return ""
-
-
 def _pkg_prompts_source() -> Path:
     """Return the package/src prompts dir (for restoring defaults)."""
     pkg = _PKG_DIR / 'prompts'
@@ -125,30 +29,6 @@ def _pkg_prompts_source() -> Path:
         return pkg
     return _SRC_ROOT / 'prompts'
 
-
-def _extract_model(flags: list) -> str:
-    """Extract value after --model in a flags list."""
-    try:
-        idx = flags.index('--model')
-        return flags[idx + 1]
-    except (ValueError, IndexError):
-        return ""
-
-
-def _set_model(flags: list, model: str) -> list:
-    """Set or update the --model value in a flags list."""
-    flags = list(flags)
-    try:
-        idx = flags.index('--model')
-        if model:
-            flags[idx + 1] = model
-        else:
-            # Remove --model and its value
-            del flags[idx:idx + 2]
-    except (ValueError, IndexError):
-        if model:
-            flags.extend(['--model', model])
-    return flags
 
 
 class SettingsScreen(ModalScreen):
@@ -216,11 +96,9 @@ class SettingsScreen(ModalScreen):
         content-align: left middle;
     }
 
-    .ai-th-agent  { width: 16; }
-    .ai-th-status { width: 5; }
+    .ai-th-agent  { width: 20; }
+    .ai-th-status { width: 6; }
     .ai-th-enabled { width: 10; }
-    .ai-th-model  { width: 1fr; margin-right: 1; }
-    .ai-th-timeout { width: 10; }
 
     .ai-row {
         height: 3;
@@ -228,46 +106,20 @@ class SettingsScreen(ModalScreen):
     }
 
     .ai-col-agent {
-        width: 16;
+        width: 20;
         color: #e6edf3;
         height: 1;
         content-align: left middle;
     }
 
     .ai-col-status {
-        width: 5;
+        width: 6;
         height: 1;
         content-align: left middle;
     }
 
     .ai-col-switch {
         width: 10;
-    }
-
-    .ai-col-model {
-        width: 1fr;
-        background: #161b22;
-        color: #e6edf3;
-        border: solid #30363d;
-        margin-right: 1;
-    }
-
-    .ai-col-model:focus {
-        border: solid #388bfd;
-        background: #0d1f38;
-    }
-
-
-    .ai-col-timeout {
-        width: 10;
-        background: #161b22;
-        color: #e6edf3;
-        border: solid #30363d;
-    }
-
-    .ai-col-timeout:focus {
-        border: solid #388bfd;
-        background: #0d1f38;
     }
 
     /* ── Prompts tab ── */
@@ -472,28 +324,18 @@ class SettingsScreen(ModalScreen):
         ais = self._config.get('ais', {})
         with Vertical(classes="ai-table"):
             with Horizontal(classes="ai-table-header"):
-                yield Static("Agent",   classes="ai-th ai-th-agent")
-                yield Static("状态",    classes="ai-th ai-th-status")
-                yield Static("启用",    classes="ai-th ai-th-enabled")
-                yield Static("Model",   classes="ai-th ai-th-model")
-                yield Static("Timeout", classes="ai-th ai-th-timeout")
+                yield Static("Agent", classes="ai-th ai-th-agent")
+                yield Static("状态",  classes="ai-th ai-th-status")
+                yield Static("启用",  classes="ai-th ai-th-enabled")
             for agent_name, agent_cfg in ais.items():
                 installed = bool(shutil.which(agent_cfg.get('cmd', agent_name)))
                 enabled   = agent_cfg.get('enabled', True)
-                model     = _extract_model(agent_cfg.get('flags', []))
-                timeout   = str(agent_cfg.get('timeout', 60))
                 icon      = agent_cfg.get('icon', '')
                 status    = "✅" if installed else "❌"
                 with Horizontal(classes="ai-row"):
                     yield Static(f"{icon} {agent_name.upper()}", classes="ai-col-agent")
                     yield Static(status, classes="ai-col-status", id=f"ai-status-{agent_name}")
                     yield Switch(value=enabled, id=f"ai-enabled-{agent_name}", classes="ai-col-switch")
-                    cli_default = _read_cli_default_model(agent_name)
-                    placeholder = f"{cli_default}  (CLI默认)" if cli_default else "↵ 查看说明"
-                    yield Input(value=model, placeholder=placeholder,
-                                classes="ai-col-model", id=f"ai-model-{agent_name}")
-                    yield Input(value=timeout, placeholder="60",
-                                classes="ai-col-timeout", id=f"ai-timeout-{agent_name}")
 
     def _compose_prompts_tab(self) -> ComposeResult:
         options = [(name, name) for name in REQUIRED_PROMPTS]
@@ -573,11 +415,6 @@ class SettingsScreen(ModalScreen):
                 return
             self.focus_next() if event.key == "right" else self.focus_previous()
             event.stop()
-        elif event.key == "enter":
-            if isinstance(focused, Input) and focused.id and focused.id.startswith("ai-model-"):
-                agent_name = focused.id[len("ai-model-"):]
-                self.app.push_screen(ModelHelpScreen(agent_name))
-                event.stop()
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "prompt-select":
@@ -645,20 +482,9 @@ class SettingsScreen(ModalScreen):
         for agent_name in ais:
             try:
                 enabled = self.query_one(f"#ai-enabled-{agent_name}", Switch).value
-                model_val = self.query_one(f"#ai-model-{agent_name}", Input).value.strip()
-                timeout_val = self.query_one(f"#ai-timeout-{agent_name}", Input).value.strip()
             except Exception:
                 continue
-
             ais[agent_name]['enabled'] = enabled
-
-            flags = list(ais[agent_name].get('flags', []))
-            ais[agent_name]['flags'] = _set_model(flags, model_val)
-
-            try:
-                ais[agent_name]['timeout'] = int(timeout_val)
-            except (ValueError, TypeError):
-                pass
 
         # ── 存储 ──
         vault_val = self.query_one("#storage-vault", Input).value.strip()
