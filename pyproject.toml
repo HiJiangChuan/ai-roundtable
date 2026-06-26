@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-roundtable"
-version = "0.0.62"
-description = "A terminal UI that runs Claude, Gemini, and Codex side-by-side in parallel deliberation"
+version = "0.0.63"
+description = "A terminal UI that runs Claude, Antigravity (agy), and Codex side-by-side in parallel deliberation"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [{ name = "HiJiangChuan", email = "hijiangchuan@gmail.com" }]
-keywords = ["ai", "claude", "gemini", "codex", "tui", "terminal", "llm", "multi-agent"]
+keywords = ["ai", "claude", "agy", "antigravity", "codex", "tui", "terminal", "llm", "multi-agent"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
