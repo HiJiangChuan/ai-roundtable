@@ -23,10 +23,10 @@ CURRENT_FILE = Path.home() / ".ai-roundtable" / "current"
 
 # ── Agent config ───────────────────────────────────────────────────────────────
 
-AGENTS = ["claude", "gemini", "codex"]
+AGENTS = ["claude", "agy", "codex"]
 
-ICONS = {"claude": "🔵", "gemini": "🟢", "codex": "🟡"}
-COLORS = {"claude": "blue", "gemini": "green", "codex": "yellow"}
+ICONS = {"claude": "🔵", "agy": "🟢", "codex": "🟡"}
+COLORS = {"claude": "blue", "agy": "green", "codex": "yellow"}
 
 SYSTEM_PROMPTS = {
     "claude": (
@@ -34,7 +34,7 @@ SYSTEM_PROMPTS = {
         "Focus on system design, trade-offs, scalability concerns, and potential risks. "
         "Be concise and structured."
     ),
-    "gemini": (
+    "agy": (
         "You are the Exploration & Alternatives Specialist in a multi-agent deliberation. "
         "Explore different approaches, creative alternatives, and unconventional ideas. "
         "Be comprehensive and think outside the box."
@@ -72,8 +72,8 @@ async def run_agent(agent: str, prompt: str) -> str:
     try:
         if agent == "claude":
             cmd = ["claude", "-p", prompt, "--dangerously-skip-permissions"]
-        elif agent == "gemini":
-            cmd = ["gemini", "-p", prompt, "--yolo"]
+        elif agent == "agy":
+            cmd = ["agy", "--print", prompt, "--dangerously-skip-permissions"]
         elif agent == "codex":
             cmd = ["codex", "exec", prompt]
         else:
@@ -166,7 +166,7 @@ class RoundtableApp(App):
         layout: vertical;
     }
 
-    #gemini-panel {
+    #agy-panel {
         border-left: vkey $surface-darken-3;
         border-right: vkey $surface-darken-3;
     }

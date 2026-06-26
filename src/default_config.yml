@@ -6,10 +6,10 @@ ais:
     color: "blue"
     icon: "🔵"
     timeout: 600
-  gemini:
-    cmd: "gemini"
-    prompt_flag: "-p"
-    flags: ["--yolo", "--model", "gemini-2.5-flash"]  # gemini-2.5-pro 质量更高但更慢
+  agy:
+    cmd: "agy"
+    prompt_flag: "--print"
+    flags: ["--dangerously-skip-permissions"]
     color: "green"
     icon: "🟢"
     timeout: 300     # 仅用于 idle 通知间隔，进程自然退出为完成信号

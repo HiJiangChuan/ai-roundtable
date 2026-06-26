@@ -14,10 +14,10 @@ from typing import Dict, Any, List, Optional, Tuple
 
 AGENT_CALLOUT = {
     'claude': ('note',    '🔵'),
-    'gemini': ('tip',     '🟢'),
+    'agy':    ('tip',     '🟢'),
     'codex':  ('warning', '🟡'),
 }
-SPEAKING_ORDER = ['claude', 'codex', 'gemini']
+SPEAKING_ORDER = ['claude', 'codex', 'agy']
 
 
 def _callout(kind: str, title: str, body: str) -> str:
@@ -134,7 +134,7 @@ class History:
             # Extract responses per agent
             responses = {}
             for agent in SPEAKING_ORDER:
-                icon_map = {'claude': '🔵', 'codex': '🟡', 'gemini': '🟢'}
+                icon_map = {'claude': '🔵', 'codex': '🟡', 'agy': '🟢'}
                 icon = icon_map[agent]
                 pattern = rf'> \[!\w+\]\+ {re.escape(icon)} {agent.upper()}\n((?:>.*\n?)*)'
                 m = re.search(pattern, section, re.IGNORECASE)

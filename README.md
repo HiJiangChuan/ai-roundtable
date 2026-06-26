@@ -1,11 +1,11 @@
 # AI Roundtable
 
-**Put Claude, Gemini, and Codex around the same table.**
+**Put Claude, Antigravity (agy), and Codex around the same table.**
 
 A terminal UI that runs multiple AI assistants side-by-side and lets them debate any topic in real time — in parallel, with no switching between windows.
 
 ```
-🔵 CLAUDE                     🟢 GEMINI                     🟡 CODEX
+🔵 CLAUDE                     🟢 AGY                        🟡 CODEX
 ──────────────────────────    ──────────────────────────    ──────────────────────────
 ── Quick Round ──             ── Quick Round ──             ── Quick Round ──
 
@@ -26,7 +26,7 @@ You need **at least one** of the following AI CLIs installed and authenticated:
 | CLI | Install | Auth |
 |-----|---------|------|
 | [Claude Code](https://claude.ai/code) | `npm install -g @anthropic-ai/claude-code` | `claude login` |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `npm install -g @google/gemini-cli` | `gemini auth` |
+| [Antigravity CLI (agy)](https://antigravity.ai) | See agy docs | Browser OAuth on first run |
 | [Codex CLI](https://github.com/openai/codex) | `npm install -g @openai/codex` | Set `OPENAI_API_KEY` |
 
 AI Roundtable works with 1, 2, or all 3. Any missing CLI is simply skipped.
@@ -70,7 +70,7 @@ You: What's the biggest risk in microservices architecture?
 🔵 CLAUDE  →  Distributed systems complexity: when a service call
                fails, tracing the root cause across 12 services...
 
-🟢 GEMINI  →  Operational overhead is underestimated. Teams often
+🟢 AGY     →  Operational overhead is underestimated. Teams often
                migrate to microservices without the tooling to...
 
 🟡 CODEX   →  Data consistency. Once you split the database, every
@@ -91,7 +91,7 @@ You: What's the biggest risk in microservices architecture?
 
 A structured multi-round debate with a rotating moderator.
 
-Each round: all AIs speak → moderator (rotating: Gemini → Codex → Claude → …) analyzes contradictions, assigns action types, and drives the next question.
+Each round: all AIs speak → moderator (rotating: agy → Codex → Claude → …) analyzes contradictions, assigns action types, and drives the next question.
 
 **Action types:** Take a position / Rebut / Supplement / Probe / Challenge premise / Synthesize
 
@@ -142,10 +142,10 @@ ais:
     timeout: 600   # Claude deep thinking can take up to 10 min
     # enabled: false  ← uncomment to disable this AI
 
-  gemini:
-    cmd: "gemini"
-    prompt_flag: "-p"
-    flags: ["--yolo"]
+  agy:
+    cmd: "agy"
+    prompt_flag: "--print"
+    flags: ["--dangerously-skip-permissions"]
     timeout: 300
 
   codex:
@@ -197,7 +197,7 @@ CLI call logs are written to `~/.ai-roundtable/cli.log`:
 
 ```
 [15:35:21] claude  OK        8.6s  211 chars (stream)
-[15:35:35] gemini  OK       22.5s  240 chars (stream)
+[15:35:35] agy     OK       22.5s  240 chars (stream)
 [15:35:38] codex   OK       25.2s  220 chars (stream)
 ```
 

@@ -289,7 +289,7 @@ Tab:hover {
 }
 
 .agent-wrap.claude { border-left: thick #1f6feb; }
-.agent-wrap.gemini { border-left: thick #238636; }
+.agent-wrap.agy { border-left: thick #238636; }
 .agent-wrap.codex  { border-left: thick #9e6a03; }
 
 .agent-title {
@@ -300,7 +300,7 @@ Tab:hover {
 }
 
 .agent-wrap.claude .agent-title { color: #79c0ff; }
-.agent-wrap.gemini .agent-title { color: #56d364; }
+.agent-wrap.agy .agent-title { color: #56d364; }
 .agent-wrap.codex  .agent-title { color: #e3b341; }
 
 .guest-log {
@@ -330,7 +330,7 @@ Tab:hover {
 }
 
 .agent-wrap.claude .guest-log:focus { background: #0a1628; }
-.agent-wrap.gemini .guest-log:focus { background: #081a0e; }
+.agent-wrap.agy .guest-log:focus { background: #081a0e; }
 .agent-wrap.codex  .guest-log:focus { background: #1a1200; }
 
 /* ── horizontal layout ────────────────────────────────────────── */

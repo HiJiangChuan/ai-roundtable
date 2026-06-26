@@ -3,8 +3,7 @@ CLI Caller - Executes CLI commands for each AI agent.
 
 Completion strategy (per AI):
   Claude  — waits for `type: result` JSON event (explicit done signal), then EOF
-  Gemini  — stream-json; tool_use events shown as progress; message events are content;
-            result event = done. Plain-text was real-time but silent during tool calls.
+  agy     — plain-text stdout; streams line by line until natural exit
   Codex   — waits for `turn.completed` JSON event, then EOF
 
 Timeout strategy (two layers):
@@ -23,7 +22,6 @@ from typing import Callable, Dict, Any, Optional
 # Extra flags appended only for streaming calls.
 STREAM_FLAGS: Dict[str, list] = {
     'claude': ['--output-format', 'stream-json', '--verbose', '--include-partial-messages'],
-    'gemini': ['--output-format', 'stream-json'],
     'codex':  ['--json'],
 }
 
@@ -275,35 +273,6 @@ class CliCaller:
                             on_chunk(text)
                 elif t in ('turn.completed', 'turn.failed'):
                     final_text = full_text
-
-        elif agent == 'gemini':
-            # Gemini stream-json: show tool_use as progress, message as content.
-            # Non-JSON lines (e.g. "Loaded cached credentials.") are silently ignored.
-            def on_stdout_line(raw: bytes):
-                nonlocal full_text, final_text
-                line = raw.decode('utf-8', errors='replace').strip()
-                if not line:
-                    return
-                try:
-                    data = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    return  # ignore non-JSON startup noise
-                t = data.get('type', '')
-                if t == 'tool_use':
-                    tool_name = data.get('tool_name', 'tool')
-                    params    = data.get('parameters', {})
-                    query     = params.get('query', '') or params.get('command', '')
-                    hint      = f"🔍 {query}…\n" if query else f"🔍 {tool_name}…\n"
-                    on_chunk(hint)   # shown in panel; NOT added to full_text → history stays clean
-                    if on_stderr:
-                        on_stderr(f"🔍 {tool_name}…")
-                elif t == 'message' and data.get('role') == 'assistant':
-                    content = data.get('content', '')
-                    if content:
-                        full_text += content
-                        on_chunk(content)
-                elif t == 'result':
-                    final_text = full_text  # mark done; content already streamed
 
         else:
             # Plain-text fallback (unknown agents)
