@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-roundtable"
-version = "0.0.63"
+version = "0.0.69"
 description = "A terminal UI that runs Claude, Antigravity (agy), and Codex side-by-side in parallel deliberation"
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,9 +26,15 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "textual>=0.47.0",
+    "textual>=8.0,<9",
     "pyyaml>=6.0",
     "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=1.0",
 ]
 
 [project.scripts]
@@ -39,8 +45,9 @@ Homepage = "https://github.com/HiJiangChuan/ai-roundtable"
 Repository = "https://github.com/HiJiangChuan/ai-roundtable"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["ai_roundtable"]
 
-[tool.hatch.build.targets.wheel.sources]
-"src" = "ai_roundtable"
-
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+testpaths = ["tests"]

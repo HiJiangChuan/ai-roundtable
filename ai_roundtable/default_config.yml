@@ -1,0 +1,39 @@
+# AI Roundtable 默认配置
+# 用户配置位于 ~/.config/ai-roundtable/config.yml，与本文件深合并（用户值优先）。
+# 各 AI 的调用方式（参数、流式协议）由内置 adapter 决定；
+# flags 中的内容会原样追加到命令行，可用于自定义权限等（例如 --dangerously-skip-permissions，默认不开启）。
+
+ais:
+  claude:
+    cmd: "claude"
+    icon: "🔵"
+    color: "blue"
+    callout: "note"      # Obsidian callout 类型
+    enabled: true
+  agy:
+    cmd: "agy"
+    icon: "🟢"
+    color: "green"
+    callout: "tip"
+    enabled: true
+  codex:
+    cmd: "codex"
+    icon: "🟡"
+    color: "yellow"
+    callout: "warning"
+    enabled: true
+
+quick:
+  context_entries: 5     # 追问时携带最近几条问答作为上下文
+  answer_snippet: 500    # 上下文中每条历史回答保留的最大字数
+
+deep:
+  full_rounds_kept: 3        # 完整保留最近几轮，更早的轮压缩为摘要
+  compress_summary_max: 80   # 每轮压缩摘要的最大字数
+
+limits:
+  idle_notify_seconds: 25      # 无输出超过该秒数时在界面提示（只提示，不杀进程）
+  safety_timeout_seconds: 900  # 绝对兜底：超过该秒数才强制终止进程
+
+history:
+  obsidian_vault: ""     # Obsidian vault 路径；留空则存至 ~/Documents/ai-roundtable/
