@@ -18,11 +18,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Read version from config.yml
+      - name: Read version from pyproject.toml
         id: version
         run: |
-          pip install pyyaml -q
-          VERSION=$(python3 -c "import yaml; print(yaml.safe_load(open('config.yml'))['version'])")
+          VERSION=$(python3 - <<'EOF'
+          import re
+          text = open("pyproject.toml", encoding="utf-8").read()
+          print(re.search(r'^version = "(.+?)"', text, re.M).group(1))
+          EOF
+          )
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
@@ -30,26 +34,21 @@ jobs:
         id: check
         run: |
           STATUS=$(python3 -c "
-          import urllib.request, json
+          import urllib.request
           try:
               urllib.request.urlopen('https://pypi.org/pypi/ai-roundtable/${{ steps.version.outputs.version }}/json')
               print('exists')
-          except:
+          except Exception:
               print('new')
           ")
           echo "status=$STATUS" >> $GITHUB_OUTPUT
           echo "PyPI status: $STATUS"
 
-      - name: Sync version to pyproject.toml
+      - name: Run tests
         if: steps.check.outputs.status == 'new'
         run: |
-          python3 -c "
-          import re
-          content = open('pyproject.toml').read()
-          content = re.sub(r'(?m)^version = \".*?\"', 'version = \"${{ steps.version.outputs.version }}\"', content, count=1)
-          open('pyproject.toml', 'w').write(content)
-          print('pyproject.toml updated to', '${{ steps.version.outputs.version }}')
-          "
+          pip install -e ".[dev]" -q
+          python -m pytest tests/ -q
 
       - name: Build package
         if: steps.check.outputs.status == 'new'

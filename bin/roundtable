@@ -7,4 +7,4 @@ if [[ -x "$ROOT/.venv/bin/python3" ]]; then
 else
     PYTHON="python3"
 fi
-exec "$PYTHON" "$ROOT/src/main.py" "$@"
+PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" exec "$PYTHON" -m ai_roundtable "$@"
