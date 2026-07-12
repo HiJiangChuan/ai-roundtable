@@ -81,6 +81,8 @@ class FakePool:
                    on_progress=None, on_idle=None) -> CallResult:
         self.calls.append((agent, prompt))
         text = self._next_text(agent, prompt)
+        if hasattr(text, "__await__"):        # async 脚本（可模拟慢响应）
+            text = await text
         if text is None:
             return CallResult(ok=False, error="fake failure")
         if isinstance(text, Exception):

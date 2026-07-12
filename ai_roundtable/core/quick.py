@@ -154,6 +154,11 @@ class QuickSession:
             self.emit(ErrorOccurred(self.id,
                                     message=f"标题生成失败: {task.exception()}"))
 
+    def close(self) -> None:
+        """关 tab / 退出时取消后台标题任务。"""
+        if self._title_task is not None:
+            self._title_task.cancel()
+
     # ── 其他 ─────────────────────────────────────────────────────────────────
 
     async def _call(self, agent: str, prompt: str):
