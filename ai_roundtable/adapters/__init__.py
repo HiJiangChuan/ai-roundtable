@@ -12,6 +12,7 @@ from .engine import CliLogger, ProcessRegistry, run_cli
 from .claude import ClaudeAdapter
 from .codex import CodexAdapter
 from .agy import AgyAdapter
+from .kimi import KimiAdapter
 from .generic import GenericAdapter
 
 __all__ = ["AgentAdapter", "AgentPool", "CallResult", "StreamEvent",
@@ -21,6 +22,7 @@ ADAPTER_CLASSES = {
     "claude": ClaudeAdapter,
     "codex": CodexAdapter,
     "agy": AgyAdapter,
+    "kimi": KimiAdapter,
 }
 
 

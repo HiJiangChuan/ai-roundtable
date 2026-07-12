@@ -28,8 +28,9 @@ You need **at least one** of the following AI CLIs installed and authenticated:
 | [Claude Code](https://claude.ai/code) | `npm install -g @anthropic-ai/claude-code` | `claude login` |
 | [Antigravity CLI (agy)](https://antigravity.ai) | See agy docs | Browser OAuth on first run |
 | [Codex CLI](https://github.com/openai/codex) | `npm install -g @openai/codex` | Set `OPENAI_API_KEY` |
+| [Kimi CLI](https://github.com/MoonshotAI/kimi-cli) | `uv tool install kimi-cli` | Run `kimi`, then `/login` |
 
-AI Roundtable works with 1, 2, or all 3. Any missing CLI is skipped automatically (you'll see a notice on startup; disable it in Settings to hide the notice).
+AI Roundtable works with any subset — 1, 2, or all of them. Any missing CLI is skipped automatically (you'll see a notice on startup; disable it in Settings to hide the notice).
 
 ---
 
@@ -211,6 +212,7 @@ ai-roundtable/
 │   │   ├── claude.py        #   stream-json protocol
 │   │   ├── codex.py         #   exec --json protocol
 │   │   ├── agy.py           #   plain-text print mode
+│   │   ├── kimi.py          #   print --output-format stream-json
 │   │   └── generic.py       #   config-driven unknown CLIs
 │   ├── core/
 │   │   ├── events.py        # Typed events (session_id-routed)

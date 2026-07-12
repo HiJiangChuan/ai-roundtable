@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-roundtable"
-version = "0.0.69"
-description = "A terminal UI that runs Claude, Antigravity (agy), and Codex side-by-side in parallel deliberation"
+version = "0.0.70"
+description = "A terminal UI that runs Claude, Antigravity (agy), Codex, and Kimi side-by-side in parallel deliberation"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

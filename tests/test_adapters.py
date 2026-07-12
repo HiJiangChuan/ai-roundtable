@@ -11,6 +11,7 @@ from ai_roundtable.adapters.claude import ClaudeAdapter
 from ai_roundtable.adapters.codex import CodexAdapter
 from ai_roundtable.adapters.engine import run_cli
 from ai_roundtable.adapters.generic import GenericAdapter
+from ai_roundtable.adapters.kimi import KimiAdapter
 
 
 # ── 命令构建 ──────────────────────────────────────────────────────────────────
@@ -40,6 +41,16 @@ def test_agy_command_argv_with_timeout():
     assert not a.prompt_via_stdin
     assert cmd[:3] == ["agy", "--print", "你好"]
     assert "--print-timeout=15m" in cmd
+
+
+def test_kimi_command_stdin_stream_json():
+    a = KimiAdapter("kimi", {"cmd": "kimi", "flags": ["--no-thinking"]})
+    cmd = a.build_command("prompt")
+    assert a.prompt_via_stdin
+    assert "prompt" not in cmd
+    assert cmd[:2] == ["kimi", "--print"]
+    assert "--input-format" in cmd and "stream-json" in cmd
+    assert cmd[-1] == "--no-thinking"
 
 
 def test_generic_adapter_legacy_config():
@@ -83,6 +94,28 @@ def test_codex_parse_line():
                                   "error": {"message": "quota"}}))
     assert ev[0].kind == "progress" and "quota" in ev[0].text
     assert ev[1].kind == "final"
+
+
+def test_kimi_parse_line():
+    a = KimiAdapter("kimi", {})
+    # 真实录制的 kimi 1.48.0 stream-json 输出行
+    real = ('{"role":"assistant","content":[{"type":"think","think":'
+            '"用户要求只回复两个字：收到。","encrypted":null},'
+            '{"type":"text","text":"收到"}]}')
+    events = a.parse_line(real)
+    kinds = [(e.kind, e.text) for e in events]
+    assert ("delta", "收到") in kinds
+    assert any(k == "progress" and t.startswith("🤔") for k, t in kinds)
+
+    # 工具调用块 → 进度；非 assistant 行 → 心跳；非 JSON → 忽略
+    ev = a.parse_line('{"role":"assistant","content":'
+                      '[{"type":"tool_call","name":"bash"}]}')
+    assert ev[0].kind == "progress" and "bash" in ev[0].text
+    assert a.parse_line('{"role":"tool","content":[]}')[0].kind == "heartbeat"
+    assert a.parse_line("plain noise") == []
+    # stderr 的续聊提示是噪音
+    assert a.parse_progress("To resume this session: kimi -r abc") is None
+    assert a.parse_progress("real error") == "real error"
 
 
 def test_plaintext_parse_strips_ansi():

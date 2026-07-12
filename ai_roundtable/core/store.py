@@ -21,9 +21,10 @@ import yaml
 
 from . import legacy
 
-# 旧版对三个内置 agent 的 callout 类型；新 agent 从这个循环里取
+# 内置 agent 的 callout 类型兜底；未知 agent 从循环里按序取
 _CALLOUT_CYCLE = ["note", "tip", "warning", "info", "quote", "example"]
-_KNOWN_CALLOUTS = {"claude": "note", "agy": "tip", "codex": "warning"}
+_KNOWN_CALLOUTS = {"claude": "note", "agy": "tip", "codex": "warning",
+                   "kimi": "info"}
 
 
 def _callout(kind: str, title: str, body: str) -> str:
