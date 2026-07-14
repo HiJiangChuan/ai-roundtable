@@ -22,6 +22,7 @@ ais:
     color: "yellow"
     callout: "warning"
     enabled: true
+    flags: ["--skip-git-repo-check"]  # codex exec 默认要求受信任的 git 目录；本工具用于讨论而非在项目里执行任务，跳过该检查
   kimi:
     cmd: "kimi"
     icon: "🌙"
