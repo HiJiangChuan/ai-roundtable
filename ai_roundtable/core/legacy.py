@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # 旧版硬编码的三个 agent 的 callout 图标（旧文件里只可能出现这三个）
-_LEGACY_ICONS = {"claude": "🔵", "codex": "🟡", "agy": "🟢", "gemini": "🟣"}
+_LEGACY_ICONS = {"claude": "🔵", "codex": "🟡", "agy": "🟢"}
 
 
 def parse_quick_meta(path: Path) -> Optional[Dict[str, Any]]:
