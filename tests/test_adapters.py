@@ -1,5 +1,8 @@
 import asyncio
 import json
+import os
+import sys
+import time
 
 import pytest
 
@@ -33,6 +36,21 @@ def test_codex_command_stdin_dash():
     assert a.prompt_via_stdin
     assert cmd[:3] == ["codex", "exec", "--json"]
     assert cmd[-1] == "-"
+
+
+def test_codex_skip_git_repo_check():
+    # TUI 工作目录不一定是 git 仓库，缺这个 flag codex exec 会直接拒绝运行
+    a = CodexAdapter("codex", {"cmd": "codex"})
+    assert "--skip-git-repo-check" in a.build_command("p")
+    # 用户 flags 已含该项时不重复
+    b = CodexAdapter("codex", {"cmd": "codex",
+                               "flags": ["--skip-git-repo-check"]})
+    assert b.build_command("p").count("--skip-git-repo-check") == 1
+
+
+def test_claude_env_overrides_removes_claudecode():
+    # 嵌套在 Claude Code 里运行时，子 claude 不能看到 CLAUDECODE
+    assert ClaudeAdapter("claude", {}).env_overrides() == {"CLAUDECODE": None}
 
 
 def test_agy_command_argv_with_timeout():
@@ -213,6 +231,102 @@ async def test_engine_delta_callback_stream():
     assert chunks == ["a\n", "b\n"]
 
 
+# ── 进程组与环境（超时不稳的根源）─────────────────────────────────────────────
+
+async def test_engine_timeout_kills_whole_process_group():
+    """超时击杀必须覆盖 CLI 派生的孙进程，不留孤儿烧 token / 占 daemon 连接。"""
+    registry = ProcessRegistry()
+    task = asyncio.create_task(run_cli(
+        ShAdapter("sleep 30 & exec sleep 30"), "p",
+        safety_timeout=0.5, registry=registry))
+    await asyncio.sleep(0.2)
+    pgid = next(iter(registry._procs)).pid    # start_new_session ⇒ pgid == pid
+    res = await task
+    assert not res.ok and "超时" in res.error
+    for _ in range(50):                        # SIGKILL 生效与收尸需要片刻
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            break
+        await asyncio.sleep(0.1)
+    else:
+        pytest.fail("进程组仍存活：孙进程未被击杀")
+
+
+async def test_engine_grandchild_holding_pipe_does_not_hang():
+    """直接子进程退出但孙进程握着 stdout 管道：EOF 永远不来，旧实现会永久挂死。"""
+    res = await asyncio.wait_for(
+        run_cli(ShAdapter("sleep 30 & echo hi"), "p", safety_timeout=1.0),
+        timeout=10.0)
+    assert not res.ok and "超时" in res.error
+
+
+async def test_engine_cancel_kills_whole_process_group():
+    """取消（关 tab / 退出）同样要整组击杀。"""
+    registry = ProcessRegistry()
+    task = asyncio.create_task(run_cli(
+        ShAdapter("sleep 30 & exec sleep 30"), "p", registry=registry))
+    await asyncio.sleep(0.3)
+    pgid = next(iter(registry._procs)).pid
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    for _ in range(50):
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            break
+        await asyncio.sleep(0.1)
+    else:
+        pytest.fail("取消后进程组仍存活")
+
+
+async def test_engine_applies_adapter_env_overrides(monkeypatch):
+    monkeypatch.setenv("RT_DROP_ME", "1")
+
+    class EnvShAdapter(ShAdapter):
+        def env_overrides(self):
+            return {"RT_DROP_ME": None, "RT_MARKER": "yes"}
+
+    res = await run_cli(EnvShAdapter(
+        'echo "D=${RT_DROP_ME:-unset} M=${RT_MARKER:-none}"'), "p")
+    assert res.ok
+    assert "D=unset" in res.text and "M=yes" in res.text
+
+
+async def test_engine_injects_terminal_env_as_default(monkeypatch):
+    # 父环境缺 TERM 时注入缺省值；已有值不覆盖
+    monkeypatch.delenv("TERM", raising=False)
+    res = await run_cli(ShAdapter('echo "TERM=${TERM:-none}"'), "p")
+    assert res.ok and "TERM=xterm-256color" in res.text
+    monkeypatch.setenv("TERM", "vt100")
+    res = await run_cli(ShAdapter('echo "TERM=$TERM"'), "p")
+    assert res.ok and "TERM=vt100" in res.text
+
+
+# ── 输入/输出的极端尺寸 ───────────────────────────────────────────────────────
+
+async def test_engine_oversized_single_line_no_crash():
+    # 单行 9MB（> 8MB 缓冲上限）：不能把引擎炸出异常，须优雅报错
+    res = await run_cli(
+        ShAdapter("head -c 9437184 /dev/zero | tr '\\0' x; echo"), "p",
+        safety_timeout=30)
+    assert not res.ok and "缓冲上限" in res.error
+
+
+@pytest.mark.skipif(sys.platform != "linux",
+                    reason="单参数 128KB 上限（MAX_ARG_STRLEN）是 Linux 行为")
+async def test_engine_oversized_argv_friendly_error():
+    class ArgvAdapter(AgentAdapter):
+        prompt_via_stdin = False
+
+        def build_command(self, prompt):
+            return ["echo", prompt]
+
+    res = await run_cli(ArgvAdapter("argv", {}), "x" * (200 * 1024))
+    assert not res.ok and "过长" in res.error
+
+
 # ── AgentPool ────────────────────────────────────────────────────────────────
 
 async def test_pool_unknown_agent():
@@ -230,3 +344,29 @@ def test_pool_builds_adapters_and_limits():
     assert isinstance(pool.adapters["custom"], GenericAdapter)
     assert pool.idle_notify == 10
     assert pool.safety_timeout == 60
+    assert pool.max_concurrent == 2                    # 默认限流
+
+
+async def test_pool_serializes_same_agent_calls():
+    """同一 agent 的并发调用要经过 semaphore 串行化（保护 daemon 型 CLI）。"""
+    pool = AgentPool({"ais": {}, "limits": {"max_concurrent_per_agent": 1}})
+    pool.adapters["sh"] = ShAdapter("sleep 0.3; echo ok")
+    t0 = time.monotonic()
+    r1, r2 = await asyncio.gather(pool.call("sh", "p"), pool.call("sh", "p"))
+    assert r1.ok and r2.ok
+    assert time.monotonic() - t0 >= 0.55               # 并行只需 ~0.3s
+
+
+async def test_pool_per_call_timeout_override():
+    pool = AgentPool({"ais": {}})
+    pool.adapters["sh"] = ShAdapter("exec sleep 30")
+    t0 = time.monotonic()
+    res = await pool.call("sh", "p", safety_timeout=0.5)
+    assert not res.ok and "超时" in res.error
+    assert time.monotonic() - t0 < 5
+
+
+async def test_pool_per_agent_max_concurrent_from_ai_cfg():
+    pool = AgentPool({"ais": {"sh": {"cmd": "bash", "max_concurrent": 3}},
+                      "limits": {"max_concurrent_per_agent": 1}})
+    assert pool._sem("sh")._value == 3                 # ais.<name> 覆盖全局默认

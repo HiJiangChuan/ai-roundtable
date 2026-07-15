@@ -3,6 +3,7 @@
 调用：`codex exec --json -`，prompt 走 stdin（`-` 显式声明）。
 `exec --json` 在 item.completed 时给出整段文本（无 token 级流式）；
 turn.completed / turn.failed 是完成信号。
+--skip-git-repo-check：TUI 的工作目录不一定是 git 仓库，不加会直接拒绝运行。
 """
 import json
 from typing import List
@@ -14,7 +15,10 @@ class CodexAdapter(AgentAdapter):
     prompt_via_stdin = True
 
     def build_command(self, prompt: str) -> List[str]:
-        return [self.cmd, "exec", "--json", *self.extra_flags, "-"]
+        cmd = [self.cmd, "exec", "--json"]
+        if "--skip-git-repo-check" not in self.extra_flags:
+            cmd.append("--skip-git-repo-check")
+        return [*cmd, *self.extra_flags, "-"]
 
     def parse_line(self, line: str) -> List[StreamEvent]:
         line = line.strip()

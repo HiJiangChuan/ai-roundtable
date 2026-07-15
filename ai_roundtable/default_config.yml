@@ -39,8 +39,10 @@ deep:
   compress_summary_max: 80   # 每轮压缩摘要的最大字数
 
 limits:
-  idle_notify_seconds: 25      # 无输出超过该秒数时在界面提示（只提示，不杀进程）
-  safety_timeout_seconds: 900  # 绝对兜底：超过该秒数才强制终止进程
+  idle_notify_seconds: 25       # 无输出超过该秒数时在界面提示（只提示，不杀进程）
+  safety_timeout_seconds: 900   # 绝对兜底：超过该秒数才强制终止进程（整个进程组）
+  max_concurrent_per_agent: 2   # 同一 AI 的最大并发调用数（daemon 型 CLI 连接有限，超发会超时）
+                                # 可在 ais.<name>.max_concurrent 单独覆盖
 
 history:
   obsidian_vault: ""     # Obsidian vault 路径；留空则存至 ~/Documents/ai-roundtable/

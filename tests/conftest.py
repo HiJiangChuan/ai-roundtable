@@ -78,7 +78,8 @@ class FakePool:
         return script
 
     async def call(self, agent, prompt, *, on_delta=None,
-                   on_progress=None, on_idle=None) -> CallResult:
+                   on_progress=None, on_idle=None,
+                   safety_timeout=None) -> CallResult:
         self.calls.append((agent, prompt))
         text = self._next_text(agent, prompt)
         if hasattr(text, "__await__"):        # async 脚本（可模拟慢响应）

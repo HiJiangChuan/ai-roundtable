@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+EnvOverrides = Dict[str, Optional[str]]
+
 ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
 # CLI 启动横幅等无信息量的 stderr 行，不作为进度展示
@@ -58,6 +60,10 @@ class AgentAdapter:
 
     def build_command(self, prompt: str) -> List[str]:
         raise NotImplementedError
+
+    def env_overrides(self) -> EnvOverrides:
+        """子进程环境变量增删；值为 None 表示从环境中删除该变量（区别于置空）。"""
+        return {}
 
     def parse_line(self, line: str) -> List[StreamEvent]:
         """默认：纯文本 CLI，每行即内容。"""

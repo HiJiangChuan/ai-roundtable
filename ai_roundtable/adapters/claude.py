@@ -7,7 +7,7 @@
 import json
 from typing import List
 
-from .base import AgentAdapter, StreamEvent
+from .base import AgentAdapter, EnvOverrides, StreamEvent
 
 
 class ClaudeAdapter(AgentAdapter):
@@ -18,6 +18,11 @@ class ClaudeAdapter(AgentAdapter):
                 "--output-format", "stream-json",
                 "--verbose", "--include-partial-messages",
                 *self.extra_flags]
+
+    def env_overrides(self) -> EnvOverrides:
+        # 删除（而非置空）CLAUDECODE：在 Claude Code 终端里运行本 TUI 时，
+        # 子 claude 会因该变量认为自己被嵌套而改变行为
+        return {"CLAUDECODE": None}
 
     def parse_line(self, line: str) -> List[StreamEvent]:
         line = line.strip()

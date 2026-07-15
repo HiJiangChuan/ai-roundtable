@@ -12,6 +12,7 @@ from .store import SessionRecord, SessionStore
 _TITLE_PROMPT = ("用4个汉字以内总结以下问题的核心主题，"
                  "只回复标题本身，不加标点、解释或换行：\n")
 _TITLE_STRIP = re.compile(r'[\\/:*?"<>|【】《》\[\]\s]')
+_TITLE_TIMEOUT = 90.0   # 标题只是锦上添花，不值得占用 900s 兜底额度
 
 
 class QuickSession:
@@ -84,7 +85,7 @@ class QuickSession:
             except OSError as e:
                 self.emit(ErrorOccurred(self.id, message=f"历史写入失败: {e}"))
 
-            if len(self.entries) == 1 and not self.title:
+            if len(self.entries) == 1 and not self.title and self.agents:
                 self._title_task = asyncio.create_task(
                     self._generate_title(question))
                 self._title_task.add_done_callback(self._title_done)
@@ -134,7 +135,8 @@ class QuickSession:
 
     async def _generate_title(self, question: str) -> None:
         res = await self.pool.call(self.agents[0],
-                                   _TITLE_PROMPT + question[:300])
+                                   _TITLE_PROMPT + question[:300],
+                                   safety_timeout=_TITLE_TIMEOUT)
         if not res.ok or not res.text.strip():
             return
         title = _TITLE_STRIP.sub("", res.text.strip().splitlines()[0])[:10]
